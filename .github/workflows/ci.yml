@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        image: ["mysql:5.7.28", "mysql:8.0.18", "mariadb:10.1.43", "mariadb:10.4.11"]
+        image: ["mysql:8.0.18"]
 
     services:
       mysql:
@@ -47,12 +47,12 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Load schema
-        working-directory: whatsoo
+        working-directory: ./
         run: |
           export CONTAINER_ID=$(docker ps --filter "ancestor=${{ matrix.image }}" --format "{{.ID}}")
           docker cp schema.sql $CONTAINER_ID:/schema.sql
           docker exec $CONTAINER_ID bash -c "mysql -uroot -ppassword whatsoo < /schema.sql"
-      - working-directory: whatsoo
+      - working-directory: ./
         run: cargo build
         env:
           DATABASE_URL: mysql://root:123456@localhost:${{ job.services.mysql.ports[3306] }}/whatsoo
