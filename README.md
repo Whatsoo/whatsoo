@@ -1,2 +1,2 @@
 # whatsoo
-a rust community
+A rust community.
