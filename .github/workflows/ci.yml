@@ -51,7 +51,7 @@ jobs:
         run: |
           export CONTAINER_ID=$(docker ps --filter "ancestor=${{ matrix.image }}" --format "{{.ID}}")
           docker cp schema.sql $CONTAINER_ID:/schema.sql
-          docker exec $CONTAINER_ID bash -c "mysql -uroot -ppassword whatsoo < /schema.sql"
+          docker exec $CONTAINER_ID bash -c "mysql -uroot -p123456 whatsoo < /schema.sql"
       - working-directory: ./
         run: cargo build
         env:
