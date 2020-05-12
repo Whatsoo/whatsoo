@@ -1,0 +1,2 @@
+# whatsoo
+a rust community
