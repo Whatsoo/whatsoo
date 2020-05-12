@@ -1,7 +1,7 @@
 <h1 align="center">Whatsoo</h1>
 <div align="center">
  <strong>
-   🧰 A simple rust community
+    :crab: A simple rust community
  </strong>
 </div>
 
