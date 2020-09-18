@@ -4,7 +4,6 @@ extern crate serde_json;
 use actix_web::{middleware, App, HttpServer};
 use anyhow::Result;
 use dotenv::dotenv;
-use route::user_route;
 use sqlx::MySqlPool;
 use std::env;
 
@@ -25,10 +24,10 @@ async fn main() -> Result<()> {
         App::new()
             .data(db_pool.clone())
             .wrap(middleware::Logger::default())
-            .configure(user_route::init)
+            .configure(route::init_all)
     })
-        .bind(format!("{}:{}", host, port))?
-        .run()
-        .await?;
+    .bind(format!("{}:{}", host, port))?
+    .run()
+    .await?;
     Ok(())
 }

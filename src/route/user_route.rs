@@ -12,6 +12,7 @@ async fn find_all_users(db_pool: web::Data<MySqlPool>) -> impl Responder {
 }
 
 // function that will be called on new Application to configure routes for this module
+#[inline]
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(find_all_users);
 }

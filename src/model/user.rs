@@ -23,6 +23,7 @@ impl Responder for User {
     type Error = Error;
     type Future = Ready<Result<HttpResponse, Error>>;
 
+    #[inline]
     fn respond_to(self, _req: &HttpRequest) -> Self::Future {
         let body = serde_json::to_string(&self).unwrap();
         // create response and set content type
