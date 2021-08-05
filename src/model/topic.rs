@@ -1,26 +1,26 @@
 use actix_web::{Error, HttpRequest, HttpResponse, Responder};
-use anyhow::Result;
-use futures::future::{ready, Ready};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::types::chrono::NaiveDateTime;
 use sqlx::FromRow;
+use std::future::{ready, Ready};
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct User {
+pub struct Topic {
     pub pk_id: i64,
-    pub uk_username: String,
-    pub uk_email: String,
-    pub avatar: Option<String>,
-    pub blog_url: Option<String>,
-    pub introduce: Option<String>,
-    pub github_uid: Option<String>,
+    pub user_id: i64,
+    pub title: String,
+    pub content: String,
+    pub tags: String,
+    pub like_times: i32,
+    pub click_times: i32,
     pub create_time: NaiveDateTime,
+    pub create_user: i64,
     pub update_time: NaiveDateTime,
-    pub last_login_time: NaiveDateTime,
+    pub update_user: i64,
 }
 
 // implementation of Actix Responder for User struct so we can return User from action handler
-impl Responder for User {
+impl Responder for Topic {
     type Error = Error;
     type Future = Ready<Result<HttpResponse, Error>>;
 
