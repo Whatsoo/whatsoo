@@ -70,20 +70,20 @@ create table whatsoo.tag_topic_relation
 create index tag_topic_relation_tag_id_index
 	on whatsoo.tag_topic_relation (tag_id);
 
-create or replace table whatsoo.comment
+create table whatsoo.comment
 (
-	pk_id bigint auto_increment comment '主键id'
-		primary key,
-	user_id bigint not null comment '用户id',
-	post_id bigint not null comment '帖子id',
-	content varchar(5000) not null comment '评论内容',
-	like_amount int null comment '点赞数量',
-	create_time datetime not null comment '创建时间',
-	create_user bigint not null comment '创建人'
+    pk_id bigint auto_increment comment '主键id'
+        primary key,
+    user_id bigint not null comment '用户id',
+    post_id bigint not null comment '帖子id',
+    content varchar(5000) not null comment '评论内容',
+    like_amount int null comment '点赞数量',
+    create_time datetime not null comment '创建时间',
+    create_user bigint not null comment '创建人'
 )
-comment '评论表';
+    comment '评论表';
 
-create or replace index comment_post_id_index
+create index comment_post_id_index
 	on whatsoo.comment (post_id);
 
 create table whatsoo.star
@@ -101,14 +101,14 @@ create table whatsoo.star
 )
     comment '综合点赞，收藏，关注表';
 
-create or replace table whatsoo.notice
+create table whatsoo.notice
 (
-	pk_id bigint auto_increment comment '主键id'
-		primary key,
-	content varchar(5000) not null comment '通知内容',
-	notified_user_id bigint not null comment '待通知人',
-	viewed tinyint default 0 not null comment '是否被查看',
-	create_time datetime not null comment '创建时间',
-	create_user bigint not null comment '创建人'
+    pk_id bigint auto_increment comment '主键id'
+        primary key,
+    content varchar(5000) not null comment '通知内容',
+    notified_user_id bigint not null comment '待通知人',
+    viewed tinyint default 0 not null comment '是否被查看',
+    create_time datetime not null comment '创建时间',
+    create_user bigint not null comment '创建人'
 )
-comment '通知表';
+    comment '通知表';
