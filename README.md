@@ -1,7 +1,7 @@
 <h1 align="center">Whatsoo</h1>
 <div align="center">
  <strong>
-    :crab: A simple rust community
+    :crab: A simple opensource community
  </strong>
 </div>
 
