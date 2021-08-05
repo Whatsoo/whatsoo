@@ -2,7 +2,8 @@ drop database whatsoo;
 create database whatsoo;
 create table whatsoo.user
 (
-    pk_id bigint auto_increment comment '主键ID' primary key,
+    pk_id bigint auto_increment comment '主键ID'
+        primary key,
     uk_username varchar(50) not null comment '用户名',
     uk_email varchar(50) not null comment '邮箱',
     avatar varchar(100) default 'https://avatars3.githubusercontent.com/u/18442141' null comment '头像',
