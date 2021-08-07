@@ -12,14 +12,16 @@ impl User {
             ORDER BY pk_id
             "#
         )
-        .fetch_all(pool)
-        .await?;
+            .fetch_all(pool)
+            .await?;
 
         for rec in recs {
             users.push(User {
                 pk_id: rec.pk_id,
                 uk_username: rec.uk_username,
                 uk_email: rec.uk_email,
+                user_password: rec.user_password,
+                salt: rec.salt,
                 avatar: rec.avatar,
                 blog_url: rec.blog_url,
                 introduce: rec.introduce,

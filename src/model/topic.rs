@@ -1,35 +1,20 @@
-use actix_web::{Error, HttpRequest, HttpResponse, Responder};
 use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::future::{ready, Ready};
+use crate::common::date_format;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Topic {
-    pub pk_id: i64,
-    pub user_id: i64,
+    pub pk_id: u64,
+    pub user_id: u64,
     pub title: String,
     pub content: String,
     pub tags: String,
-    pub like_times: i32,
-    pub click_times: i32,
+    pub like_times: u32,
+    pub click_times: u32,
+    #[serde(with = "date_format")]
     pub create_time: NaiveDateTime,
-    pub create_user: i64,
+    pub create_user: u64,
+    #[serde(with = "date_format")]
     pub update_time: NaiveDateTime,
-    pub update_user: i64,
-}
-
-// implementation of Actix Responder for User struct so we can return User from action handler
-impl Responder for Topic {
-    type Error = Error;
-    type Future = Ready<Result<HttpResponse, Error>>;
-
-    #[inline]
-    fn respond_to(self, _req: &HttpRequest) -> Self::Future {
-        let body = serde_json::to_string(&self).unwrap();
-        // create response and set content type
-        ready(Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(body)))
-    }
+    pub update_user: u64,
 }
