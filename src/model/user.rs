@@ -20,3 +20,22 @@ pub struct User {
     #[serde(with = "date_format")]
     pub last_login_time: NaiveDateTime,
 }
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct VerifyStatus {
+    is_success: bool,
+}
+
+impl VerifyStatus {
+    pub fn success() -> Self {
+        Self {
+            is_success: true
+        }
+    }
+
+    pub fn fail() -> Self {
+        Self {
+            is_success: false
+        }
+    }
+}

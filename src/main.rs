@@ -2,15 +2,22 @@
 extern crate serde;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate lazy_static;
+extern crate r2d2_redis;
 
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{middleware, App, HttpServer, web};
 use anyhow::Result;
 use dotenv::dotenv;
 use sqlx::mysql::MySqlPoolOptions;
 use std::env;
 use std::time::Duration;
 use actix_web::http::ContentEncoding;
-use argon2::Version;
+use sqlx::MySqlPool;
+use r2d2_redis::RedisConnectionManager;
+use r2d2_redis::r2d2::Pool;
+use regex::Regex;
+
 
 mod common;
 mod model;
@@ -18,6 +25,19 @@ mod route;
 mod service;
 mod repository;
 mod auth_middleware;
+
+lazy_static! {
+    static ref MAILE_RE: Regex = Regex::new(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$").unwrap();
+}
+
+// 在actix_web::web::Data之间共享
+#[derive(Clone)]
+struct ShareState {
+    pub db_pool: MySqlPool,
+    pub redis_pool: Pool<RedisConnectionManager>,
+}
+
+type AppState = web::Data<ShareState>;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -34,9 +54,19 @@ async fn main() -> Result<()> {
         .connect(&db_url)
         .await?;
 
+    let manager = RedisConnectionManager::new("redis://localhost").unwrap();
+
+    let redis_pool = r2d2_redis::r2d2::Pool::builder()
+        .build(manager)
+        .unwrap();
+
+    let state = ShareState {
+        db_pool,
+        redis_pool,
+    };
     HttpServer::new(move || {
         App::new()
-            .data(db_pool.clone())
+            .data(state.clone())
             .wrap(middleware::Logger::new("%r %s"))
             .wrap(middleware::Compress::new(ContentEncoding::Br))
             .wrap(auth_middleware::Auth)
