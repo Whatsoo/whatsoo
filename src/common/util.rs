@@ -9,20 +9,11 @@ use lettre::{SmtpClient, Transport};
 use argon2::{password_hash::{PasswordHasher, SaltString}, Argon2, Version};
 use rand_core::OsRng;
 
-pub fn send_email() {
-    let email_receiver = "YOUR_TARGET_EMAIL";
-    let mine_email = "YOUR_GMAIL_ADDRESS";
-    let smtp_server = "smtp.gmail.com";
-    let password = "YOUR_GMAIL_APPLICATION_PASSWORD"; //需要生成应用专用密码
-
-    let email = Email::builder()
-        .to(email_receiver)
-        .from(mine_email)
-        .subject("subject")
-        .html("<h1>Hi there</h1>")
-        .text("Message send by lettre Rust")
-        .build()
-        .unwrap();
+pub fn send_email(email_receiver: &str) -> String {
+    let mine_email = "nova-me@whatsoo.org";
+    let smtp_server = "smtp.exmail.qq.com";
+    let password = "Zsl19951210"; //需要生成应用专用密码
+    let verify_code = SaltString::generate(&mut OsRng);
 
     let creds = Credentials::new(
         mine_email.to_string(),
@@ -35,17 +26,26 @@ pub fn send_email() {
         .credentials(creds)
         .transport();
 
+    let email = Email::builder()
+        .to(email_receiver)
+        .from(mine_email)
+        .subject("whatsoo论坛邮箱验证码")
+        .html(format!("<h3>{}</h3>", verify_code.as_str()))
+        .build()
+        .unwrap();
+
     // Send the email
     let result = mailer.send(email.into());
 
     if result.is_ok() {
-        println!("Email sent");
+        info!("Email sent");
     } else {
-        println!("Could not send email: {:?}", result);
+        info!("Could not send email: {:?}", result);
     }
 
-    print!("{:?}", result);
+    info!("{:?}", result);
     mailer.close();
+    String::from(verify_code.as_str())
 }
 
 pub fn encode_pwd(pwd: &str, salt: SaltString) -> String {

@@ -14,9 +14,9 @@ create table whatsoo.user
     blog_url        varchar(100) null comment '博客网址',
     introduce       varchar(500) null comment '自我介绍',
     github_uid      varchar(50) null comment 'Github用户名',
-    last_login_time datetime                               not null comment '最后登录时间',
-    create_time     datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '创建时间',
-    update_time     datetime                               not null comment '更新时间',
+    last_login_time datetime     default CURRENT_TIMESTAMP not null comment '最后登录时间',
+    create_time     datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
+    update_time     datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     constraint user_blog_url_uindex
         unique (blog_url),
     constraint user_github_uid_uindex

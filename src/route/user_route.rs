@@ -1,10 +1,10 @@
 use crate::service::user_service;
-use actix_web::{get, web, Responder, HttpResponse};
+use actix_web::{get, post, web, Responder, HttpResponse};
 use sqlx::MySqlPool;
 use crate::common::api::ApiResult;
 use captcha::{Captcha, Geometry};
 use captcha::filters::{Noise, Wave, Cow};
-use crate::model::user::{VerifyStatus, User};
+use crate::model::user::{VerifyStatus, User, RegisterUser};
 use anyhow::Error;
 use crate::AppState;
 use r2d2_redis::{redis, redis::ConnectionLike};
@@ -14,26 +14,8 @@ use r2d2_redis::redis::{RedisResult, RedisError};
 use crate::common::util;
 use uuid::Uuid;
 
-#[get("/user/verify/username/{username}")]
-async fn verify_username(web::Path((username)): web::Path<String>, state: AppState) -> impl Responder {
-    let exists = user_service::check_username_exists(username, &state.get_ref().db_pool).await;
-    match exists {
-        Ok(count) => {
-            if count == 0 {
-                ApiResult::ok().data(VerifyStatus::success()).msg("用户名证成功")
-            } else {
-                ApiResult::error().data(VerifyStatus::fail()).msg("用户名已存在，请登录")
-            }
-        }
-        Err(e) => {
-            error!("用户名验证出错，报错信息: {}",e.to_string());
-            ApiResult::error().data(VerifyStatus::fail()).msg("用户名验证，服务器出错")
-        }
-    }
-}
-
-#[get("/user/verify/email/{email}")]
-async fn verify_email(web::Path((email)): web::Path<String>, state: AppState) -> impl Responder {
+#[get("/user/validate/email/{email}")]
+async fn validate_email(web::Path((email)): web::Path<String>, state: AppState) -> impl Responder {
     let legal = MAILE_RE.is_match(&email);
     if !legal {
         return ApiResult::error().data(VerifyStatus::fail()).msg("邮箱格式不合法，请重新出入邮箱");
@@ -50,6 +32,25 @@ async fn verify_email(web::Path((email)): web::Path<String>, state: AppState) ->
         Err(e) => {
             error!("邮箱验证出错，报错信息: {}",e.to_string());
             ApiResult::error().data(VerifyStatus::fail()).msg("邮箱验证，服务器出错")
+        }
+    }
+}
+
+
+#[get("/user/validate/username/{username}")]
+async fn validate_username(web::Path((username)): web::Path<String>, state: AppState) -> impl Responder {
+    let exists = user_service::check_username_exists(username, &state.get_ref().db_pool).await;
+    match exists {
+        Ok(count) => {
+            if count == 0 {
+                ApiResult::ok().data(VerifyStatus::success()).msg("用户名证成功")
+            } else {
+                ApiResult::error().data(VerifyStatus::fail()).msg("用户名已存在，请登录")
+            }
+        }
+        Err(e) => {
+            error!("用户名验证出错，报错信息: {}",e.to_string());
+            ApiResult::error().data(VerifyStatus::fail()).msg("用户名验证，服务器出错")
         }
     }
 }
@@ -78,13 +79,15 @@ async fn get_captcha(state: AppState) -> impl Responder {
     HttpResponse::Ok().header("captcha-key", key).body(vec)
 }
 
-#[get("/verify/captcha/{captcha_key}/{captcha}")]
-async fn verify_captcha(web::Path((captcha_key, captcha)): web::Path<(String, String)>, state: AppState) -> impl Responder {
+#[get("/verify/captcha/{captcha_key}/{captcha}/{email}")]
+async fn verify_captcha(web::Path((captcha_key, captcha, email)): web::Path<(String, String, String)>, state: AppState) -> impl Responder {
     let connection = &mut state.get_ref().redis_pool.get().unwrap();
     let result = util::redis_get::<String>(&captcha_key, connection);
     match result {
         Ok(value) => {
             if value.eq(&captcha) {
+                let email_verify_code = util::send_email(&email);
+                util::redis_set(&email, &email_verify_code, 60, connection);
                 ApiResult::ok().msg("验证码校验成功").data(VerifyStatus::success())
             } else {
                 ApiResult::ok().msg("验证码校验失败").data(VerifyStatus::fail())
@@ -97,11 +100,46 @@ async fn verify_captcha(web::Path((captcha_key, captcha)): web::Path<(String, St
     }
 }
 
+#[get("/verify/email/{email}/{verify_code}")]
+async fn verify_email(web::Path((email, verify_code)): web::Path<(String, String)>, state: AppState) -> impl Responder {
+    let connection = &mut state.get_ref().redis_pool.get().unwrap();
+    let result = util::redis_get::<String>(&email, connection);
+    match result {
+        Ok(value) => {
+            if value.eq(&verify_code) {
+                ApiResult::ok().msg("邮箱验证码校验成功").data(VerifyStatus::success())
+            } else {
+                ApiResult::ok().msg("邮箱验证码校验失败").data(VerifyStatus::fail())
+            }
+        }
+        Err(e) => {
+            error!("获取邮箱验证码缓存失败, 失败原因: {}",e.to_string());
+            ApiResult::error().msg("邮箱验证码已过期，重新获取邮箱验证码").data(VerifyStatus::fail())
+        }
+    }
+}
+
+#[get("/login")]
+async fn login() -> impl Responder {
+    ApiResult::ok().msg("aaa").data("aaa")
+}
+
+#[post("/user/add")]
+async fn insert_user(user: web::Json<RegisterUser>, state: AppState) -> impl Responder {
+    let a = user_service::insert_one_user(user.into_inner(), &state.get_ref().db_pool).await;
+    info!("插入成功{:#?}",a);
+    ApiResult::ok().msg("aaa").data("aaa")
+}
+
+
 // function that will be called on new Application to configure routes for this module
 #[inline]
 pub fn init(cfg: &mut web::ServiceConfig) {
-    cfg.service(verify_email);
-    cfg.service(verify_username);
-    cfg.service(get_captcha);
-    cfg.service(verify_captcha);
+    cfg.service(verify_email).
+        service(validate_email).
+        service(validate_username).
+        service(get_captcha).
+        service(verify_captcha).
+        service(insert_user).
+        service(login);
 }
