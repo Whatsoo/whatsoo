@@ -9,7 +9,6 @@ create table whatsoo.user
     uk_username     varchar(50)                            not null comment '用户名',
     uk_email        varchar(50)                            not null comment '邮箱',
     user_password   varchar(500)                           not null comment '用户密码',
-    salt            varchar(500)                           not null comment '混淆参数',
     avatar          varchar(100) default 'https://avatars3.githubusercontent.com/u/18442141' null comment '头像',
     blog_url        varchar(100) null comment '博客网址',
     introduce       varchar(500) null comment '自我介绍',

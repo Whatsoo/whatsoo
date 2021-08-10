@@ -1,15 +1,65 @@
-use crate::model::user::{User, RegisterUser};
+use crate::model::user::{User, RegisterUser, VerifyStatus};
 use anyhow::Result;
 use sqlx::MySqlPool;
+use crate::common::api::ApiResult;
+use actix_web::Responder;
+use crate::common::util;
+use r2d2_redis::RedisConnectionManager;
+use r2d2_redis::r2d2::PooledConnection;
 
-pub async fn check_email_exists(email: String, pool: &MySqlPool) -> Result<i64> {
-    User::check_email_exists(email, pool).await
+pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<VerifyStatus> {
+    let exists = User::count_by_email(email, pool).await;
+    match exists {
+        Ok(count) => {
+            if count == 0 {
+                ApiResult::ok().data(VerifyStatus::success()).msg("邮箱验证成功")
+            } else {
+                ApiResult::error().data(VerifyStatus::fail()).msg("邮箱已注册，请登录")
+            }
+        }
+        Err(e) => {
+            error!("邮箱验证出错，报错信息: {}",e.to_string());
+            ApiResult::error().data(VerifyStatus::fail()).msg("邮箱验证，服务器出错")
+        }
+    }
 }
 
-pub async fn check_username_exists(username: String, pool: &MySqlPool) -> Result<i64> {
-    User::check_username_exists(username, pool).await
+pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl Responder {
+    let exists = User::count_by_username(username, pool).await;
+    match exists {
+        Ok(count) => {
+            if count == 0 {
+                ApiResult::ok().data(VerifyStatus::success()).msg("用户名证成功")
+            } else {
+                ApiResult::error().data(VerifyStatus::fail()).msg("用户名已存在，请登录")
+            }
+        }
+        Err(e) => {
+            error!("用户名验证出错，报错信息: {}",e.to_string());
+            ApiResult::error().data(VerifyStatus::fail()).msg("用户名验证，服务器出错")
+        }
+    }
 }
 
-pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> Result<i64> {
-    User::insert_one_user(user, pool).await
+pub async fn register_user(mut register_user: RegisterUser, connection: &mut PooledConnection<RedisConnectionManager>, pool: &MySqlPool) -> impl Responder {
+    let email = &register_user.uk_email;
+    let verify_code = &register_user.email_verify_code;
+    let result = util::redis_get::<String>(email, connection).await;
+    match result {
+        Ok(value) => {
+            if value.eq(verify_code) {
+                // 邮箱校验成功即注册成功
+                // 加密密码
+                register_user.user_password = util::encode_pwd(&register_user.user_password).await;
+                User::insert_one_user(register_user, pool).await;
+                ApiResult::ok().msg("邮箱验证码校验成功").data(VerifyStatus::success())
+            } else {
+                ApiResult::ok().msg("邮箱验证码校验失败").data(VerifyStatus::fail())
+            }
+        }
+        Err(e) => {
+            error!("获取邮箱验证码缓存失败, 失败原因: {}",e.to_string());
+            ApiResult::error().msg("邮箱验证码已过期，重新获取邮箱验证码").data(VerifyStatus::fail())
+        }
+    }
 }

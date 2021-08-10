@@ -25,8 +25,15 @@ pub struct User {
 pub struct RegisterUser {
     pub uk_username: String,
     pub uk_email: String,
+    pub email_verify_code: String,
     pub user_password: String,
-    pub salt: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CaptchaUser {
+    pub captcha_key: String,
+    pub captcha_value: String,
+    pub email: String,
 }
 
 pub struct LoginUser {}

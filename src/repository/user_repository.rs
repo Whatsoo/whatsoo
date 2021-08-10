@@ -3,7 +3,7 @@ use anyhow::Result;
 use sqlx::MySqlPool;
 
 impl User {
-    pub async fn check_email_exists(email: String, pool: &MySqlPool) -> Result<i64> {
+    pub async fn count_by_email(email: String, pool: &MySqlPool) -> Result<i64> {
         let rec = sqlx::query!(
             r#"
             SELECT COUNT(*) as count
@@ -18,7 +18,7 @@ impl User {
         Ok(rec.count)
     }
 
-    pub async fn check_username_exists(username: String, pool: &MySqlPool) -> Result<i64> {
+    pub async fn count_by_username(username: String, pool: &MySqlPool) -> Result<i64> {
         let rec = sqlx::query!(
             r#"
             SELECT COUNT(*) as count
@@ -34,22 +34,21 @@ impl User {
     }
 
     pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> Result<i64> {
-        let salt = user.salt.unwrap();
         let rec = sqlx::query!(
             r#"
             INSERT INTO user
-                (uk_username, uk_email, user_password, salt)
+                (uk_username, uk_email, user_password)
             VALUES
-                (?, ?, ?, ?);
+                (?, ?, ?);
             "#,
             user.uk_username,
             user.uk_email,
             user.user_password,
-            salt,
         )
             .execute(pool)
             .await?;
-        info!("{:#?}",rec);
+        info!("插入用户返回值{:#?}",rec);
+        // TODO 正确返回值
         Ok(1)
     }
 }
