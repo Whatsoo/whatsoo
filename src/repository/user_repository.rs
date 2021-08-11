@@ -33,7 +33,7 @@ impl User {
         Ok(rec.count)
     }
 
-    pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> Result<i64> {
+    pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> Result<u64> {
         let rec = sqlx::query!(
             r#"
             INSERT INTO user
@@ -46,9 +46,10 @@ impl User {
             user.user_password,
         )
             .execute(pool)
-            .await?;
+            .await?
+            .last_insert_id();
         info!("插入用户返回值{:#?}",rec);
         // TODO 正确返回值
-        Ok(1)
+        Ok(rec)
     }
 }

@@ -1,5 +1,5 @@
 use crate::model::user::{User, RegisterUser, VerifyStatus};
-use anyhow::Result;
+use anyhow::{Result, Error};
 use sqlx::MySqlPool;
 use crate::common::api::ApiResult;
 use actix_web::Responder;
@@ -51,8 +51,16 @@ pub async fn register_user(mut register_user: RegisterUser, connection: &mut Poo
                 // 邮箱校验成功即注册成功
                 // 加密密码
                 register_user.user_password = util::encode_pwd(&register_user.user_password).await;
-                User::insert_one_user(register_user, pool).await;
-                ApiResult::ok().msg("邮箱验证码校验成功").data(VerifyStatus::success())
+                match User::insert_one_user(register_user, pool).await {
+                    Ok(id) => {
+                        info!("用户注册成功，用户id: {}",id);
+                        ApiResult::ok().msg("邮箱验证码校验正确，注册成功").data(VerifyStatus::success())
+                    }
+                    Err(e) => {
+                        error!("插入用户失败，失败原因:{}",e.to_string());
+                        ApiResult::ok().msg("注册失败").data(VerifyStatus::fail())
+                    }
+                }
             } else {
                 ApiResult::ok().msg("邮箱验证码校验失败").data(VerifyStatus::fail())
             }
