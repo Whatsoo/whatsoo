@@ -4,7 +4,7 @@ use sqlx::MySqlPool;
 use crate::common::api::ApiResult;
 use captcha::{Captcha, Geometry};
 use captcha::filters::{Noise, Wave, Cow};
-use crate::model::user::{VerifyStatus, User, RegisterUser, CaptchaUser};
+use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, VerifyStatus};
 use anyhow::Error;
 use crate::AppState;
 use r2d2_redis::{redis, redis::ConnectionLike};
@@ -58,14 +58,14 @@ async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -
 }
 
 #[get("/verify/email")]
-async fn verify_email(mut register_user: web::Form<RegisterUser>, state: AppState) -> impl Responder {
+async fn verify_email(register_user: web::Form<RegisterUser>, state: AppState) -> impl Responder {
     let connection = &mut state.get_ref().redis_pool.get().unwrap();
     let pool = &state.get_ref().db_pool;
     user_service::register_user(register_user.into_inner(), connection, pool).await
 }
 
 #[get("/login")]
-async fn login() -> impl Responder {
+async fn login(login_user: web::Form<LoginUser>) -> impl Responder {
     // TODO 登录接口
     ApiResult::ok().msg("").data("")
 }

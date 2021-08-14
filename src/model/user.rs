@@ -21,7 +21,7 @@ pub struct User {
     pub last_login_time: NaiveDateTime,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct RegisterUser {
     pub uk_username: String,
     pub uk_email: String,
@@ -29,16 +29,22 @@ pub struct RegisterUser {
     pub user_password: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct CaptchaUser {
     pub captcha_key: String,
     pub captcha_value: String,
     pub email: String,
 }
 
-pub struct LoginUser {}
+#[derive(Debug, Deserialize)]
+pub struct LoginUser {
+    pub captcha_key: String,
+    pub captcha_value: String,
+    pub email: String,
+    pub password: String,
+}
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct VerifyStatus {
     is_success: bool,
 }
