@@ -1,17 +1,9 @@
 use crate::service::user_service;
 use actix_web::{get, post, web, Responder, HttpResponse};
-use sqlx::MySqlPool;
 use crate::common::api::ApiResult;
-use captcha::{Captcha, Geometry};
-use captcha::filters::{Noise, Wave, Cow};
-use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, VerifyStatus};
-use anyhow::Error;
+use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, VerifyStatus};
 use crate::AppState;
-use r2d2_redis::{redis, redis::ConnectionLike};
-use std::ops::{Deref, DerefMut};
-use r2d2_redis::redis::{RedisResult, RedisError};
 use crate::common::util;
-use uuid::Uuid;
 use crate::MAILE_RE;
 
 #[get("/user/validate/email/{email}")]
@@ -36,7 +28,7 @@ async fn get_captcha(state: AppState) -> impl Responder {
     HttpResponse::Ok().header("captcha-key", key).body(vec)
 }
 
-#[get("/verify/captcha")]
+#[post("/verify/captcha")]
 async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -> impl Responder {
     let connection = &mut state.get_ref().redis_pool.get().unwrap();
     let result = util::redis_get::<String>(&captcha_user.captcha_key, connection).await;
@@ -57,7 +49,7 @@ async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -
     }
 }
 
-#[get("/verify/email")]
+#[post("/verify/email")]
 async fn verify_email(register_user: web::Form<RegisterUser>, state: AppState) -> impl Responder {
     let connection = &mut state.get_ref().redis_pool.get().unwrap();
     let pool = &state.get_ref().db_pool;
