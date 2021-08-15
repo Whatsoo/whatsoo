@@ -2,20 +2,23 @@ extern crate lettre;
 extern crate lettre_email;
 extern crate mime;
 
-use lettre_email::Email;
 use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, Transport};
+use lettre_email::Email;
 
-use argon2::{password_hash::{PasswordHasher, SaltString}, Argon2, Version, PasswordHash, PasswordVerifier};
-use rand_core::OsRng;
 use anyhow::Result;
-use r2d2_redis::{redis, RedisConnectionManager};
-use r2d2_redis::r2d2::PooledConnection;
-use std::ops::DerefMut;
-use r2d2_redis::redis::{RedisResult, FromRedisValue};
 use argon2::password_hash::Error;
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2, PasswordHash, PasswordVerifier, Version,
+};
+use captcha::filters::{Cow, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use captcha::filters::{Noise, Wave, Cow};
+use r2d2_redis::r2d2::PooledConnection;
+use r2d2_redis::redis::{FromRedisValue, RedisResult};
+use r2d2_redis::{redis, RedisConnectionManager};
+use rand_core::OsRng;
+use std::ops::DerefMut;
 use uuid::Uuid;
 
 pub async fn send_email(email_receiver: &str) -> String {
@@ -24,10 +27,7 @@ pub async fn send_email(email_receiver: &str) -> String {
     let password = "Zsl19951210"; //需要生成应用专用密码
     let verify_code = SaltString::generate(&mut OsRng);
 
-    let creds = Credentials::new(
-        mine_email.to_string(),
-        password.to_string(),
-    );
+    let creds = Credentials::new(mine_email.to_string(), password.to_string());
 
     // Open connection to Gmail
     let mut mailer = SmtpClient::new_simple(smtp_server)
@@ -60,26 +60,47 @@ pub async fn send_email(email_receiver: &str) -> String {
 pub async fn encode_pwd(pwd: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13).unwrap_or(Argon2::default());
-    let result = argon2.hash_password_simple(pwd.as_bytes(), salt.as_ref()).unwrap();
+    let result = argon2
+        .hash_password_simple(pwd.as_bytes(), salt.as_ref())
+        .unwrap();
     result.to_string()
 }
 
 pub async fn verify_pwd(input_pwd: &str, db_pwd: &str) -> bool {
     let db_pwd_hash = PasswordHash::new(db_pwd).unwrap();
     let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13).unwrap_or(Argon2::default());
-    argon2.verify_password(input_pwd.as_bytes(), &db_pwd_hash).is_ok()
+    argon2
+        .verify_password(input_pwd.as_bytes(), &db_pwd_hash)
+        .is_ok()
 }
 
 // expired_time过期时间单位为秒
-pub async fn redis_set(key: &str, value: &str, expired_time: i32, connection: &mut PooledConnection<RedisConnectionManager>) {
-    redis::cmd("SET").arg(key).arg(value).arg("EX").arg(expired_time).execute(connection.deref_mut());
+pub async fn redis_set(
+    key: &str,
+    value: &str,
+    expired_time: i32,
+    connection: &mut PooledConnection<RedisConnectionManager>,
+) {
+    redis::cmd("SET")
+        .arg(key)
+        .arg(value)
+        .arg("EX")
+        .arg(expired_time)
+        .execute(connection.deref_mut());
 }
 
-pub async fn redis_get<T: FromRedisValue>(key: &str, connection: &mut PooledConnection<RedisConnectionManager>) -> RedisResult<T> {
-    redis::cmd("GET").arg(key).query::<T>(connection.deref_mut())
+pub async fn redis_get<T: FromRedisValue>(
+    key: &str,
+    connection: &mut PooledConnection<RedisConnectionManager>,
+) -> RedisResult<T> {
+    redis::cmd("GET")
+        .arg(key)
+        .query::<T>(connection.deref_mut())
 }
 
-pub async fn gen_pic_captcha(connection: &mut PooledConnection<RedisConnectionManager>) -> (String, Vec<u8>) {
+pub async fn gen_pic_captcha(
+    connection: &mut PooledConnection<RedisConnectionManager>,
+) -> (String, Vec<u8>) {
     let mut c = Captcha::new();
     c.add_chars(4)
         .apply_filter(Noise::new(0.0))
@@ -95,8 +116,29 @@ pub async fn gen_pic_captcha(connection: &mut PooledConnection<RedisConnectionMa
         );
     let captcha_value = c.chars_as_string();
     let key = Uuid::new_v4().to_urn().to_string();
-    info!("key: {} 图形验证码: {}",&key, &captcha_value);
+    info!("key: {} 图形验证码: {}", &key, &captcha_value);
     redis_set(&key, &captcha_value, 60 * 5, connection).await;
     let vec = c.as_png().unwrap();
     (captcha_value, vec)
+}
+
+pub async fn validate_captcha(
+    key: &str,
+    value: &str,
+    connection: &mut PooledConnection<RedisConnectionManager>,
+) -> bool {
+    let result = redis_get::<String>(key, connection).await;
+    match result {
+        Ok(v) => {
+            if v.eq(value) {
+                true
+            } else {
+                false
+            }
+        }
+        Err(e) => {
+            error!("获取验证码缓存失败, 失败原因: {}", e.to_string());
+            false
+        }
+    }
 }

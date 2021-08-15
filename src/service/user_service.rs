@@ -1,25 +1,30 @@
-use crate::model::user::{User, RegisterUser, VerifyStatus};
-use anyhow::{Result, Error};
-use sqlx::MySqlPool;
 use crate::common::api::ApiResult;
-use actix_web::Responder;
 use crate::common::util;
-use r2d2_redis::RedisConnectionManager;
+use crate::model::user::{RegisterUser, User, VerifyStatus};
+use actix_web::Responder;
 use r2d2_redis::r2d2::PooledConnection;
+use r2d2_redis::RedisConnectionManager;
+use sqlx::MySqlPool;
 
 pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<VerifyStatus> {
     let exists = User::count_by_email(email, pool).await;
     match exists {
         Ok(count) => {
             if count == 0 {
-                ApiResult::ok().data(VerifyStatus::success()).msg("邮箱验证成功")
+                ApiResult::ok()
+                    .data(VerifyStatus::success())
+                    .msg("邮箱验证成功")
             } else {
-                ApiResult::error().data(VerifyStatus::fail()).msg("邮箱已注册，请登录")
+                ApiResult::error()
+                    .data(VerifyStatus::fail())
+                    .msg("邮箱已注册，请登录")
             }
         }
         Err(e) => {
-            error!("邮箱验证出错，报错信息: {}",e.to_string());
-            ApiResult::error().data(VerifyStatus::fail()).msg("邮箱验证，服务器出错")
+            error!("邮箱验证出错，报错信息: {}", e.to_string());
+            ApiResult::error()
+                .data(VerifyStatus::fail())
+                .msg("邮箱验证，服务器出错")
         }
     }
 }
@@ -29,19 +34,29 @@ pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl R
     match exists {
         Ok(count) => {
             if count == 0 {
-                ApiResult::ok().data(VerifyStatus::success()).msg("用户名证成功")
+                ApiResult::ok()
+                    .data(VerifyStatus::success())
+                    .msg("用户名证成功")
             } else {
-                ApiResult::error().data(VerifyStatus::fail()).msg("用户名已存在，请登录")
+                ApiResult::error()
+                    .data(VerifyStatus::fail())
+                    .msg("用户名已存在，请登录")
             }
         }
         Err(e) => {
-            error!("用户名验证出错，报错信息: {}",e.to_string());
-            ApiResult::error().data(VerifyStatus::fail()).msg("用户名验证，服务器出错")
+            error!("用户名验证出错，报错信息: {}", e.to_string());
+            ApiResult::error()
+                .data(VerifyStatus::fail())
+                .msg("用户名验证，服务器出错")
         }
     }
 }
 
-pub async fn register_user(mut register_user: RegisterUser, connection: &mut PooledConnection<RedisConnectionManager>, pool: &MySqlPool) -> impl Responder {
+pub async fn register_user(
+    mut register_user: RegisterUser,
+    connection: &mut PooledConnection<RedisConnectionManager>,
+    pool: &MySqlPool,
+) -> impl Responder {
     let email = &register_user.uk_email;
     let verify_code = &register_user.email_verify_code;
     let result = util::redis_get::<String>(email, connection).await;
@@ -53,21 +68,27 @@ pub async fn register_user(mut register_user: RegisterUser, connection: &mut Poo
                 register_user.user_password = util::encode_pwd(&register_user.user_password).await;
                 match User::insert_one_user(register_user, pool).await {
                     Ok(id) => {
-                        info!("用户注册成功，用户id: {}",id);
-                        ApiResult::ok().msg("邮箱验证码校验正确，注册成功").data(VerifyStatus::success())
+                        info!("用户注册成功，用户id: {}", id);
+                        ApiResult::ok()
+                            .msg("邮箱验证码校验正确，注册成功")
+                            .data(VerifyStatus::success())
                     }
                     Err(e) => {
-                        error!("插入用户失败，失败原因:{}",e.to_string());
+                        error!("插入用户失败，失败原因:{}", e.to_string());
                         ApiResult::ok().msg("注册失败").data(VerifyStatus::fail())
                     }
                 }
             } else {
-                ApiResult::ok().msg("邮箱验证码校验失败").data(VerifyStatus::fail())
+                ApiResult::ok()
+                    .msg("邮箱验证码校验失败")
+                    .data(VerifyStatus::fail())
             }
         }
         Err(e) => {
-            error!("获取邮箱验证码缓存失败, 失败原因: {}",e.to_string());
-            ApiResult::error().msg("邮箱验证码已过期，重新获取邮箱验证码").data(VerifyStatus::fail())
+            error!("获取邮箱验证码缓存失败, 失败原因: {}", e.to_string());
+            ApiResult::error()
+                .msg("邮箱验证码已过期，重新获取邮箱验证码")
+                .data(VerifyStatus::fail())
         }
     }
 }
