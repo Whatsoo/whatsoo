@@ -6,28 +6,30 @@ extern crate log;
 extern crate lazy_static;
 extern crate r2d2_redis;
 
-use actix_web::{middleware, App, HttpServer, web};
-use anyhow::Result;
-use dotenv::dotenv;
-use sqlx::mysql::MySqlPoolOptions;
 use std::env;
 use std::time::Duration;
-use actix_web::http::ContentEncoding;
-use sqlx::MySqlPool;
-use r2d2_redis::RedisConnectionManager;
-use r2d2_redis::r2d2::Pool;
-use regex::Regex;
 
+use actix_web::http::ContentEncoding;
+use actix_web::{middleware, web, App, HttpServer};
+use anyhow::Result;
+use dotenv::dotenv;
+use r2d2_redis::r2d2::Pool;
+use r2d2_redis::RedisConnectionManager;
+use regex::Regex;
+use sqlx::mysql::MySqlPoolOptions;
+use sqlx::MySqlPool;
+
+use common::auth_middleware;
 
 mod common;
 mod model;
+mod repository;
 mod route;
 mod service;
-mod repository;
-mod auth_middleware;
 
 lazy_static! {
-    static ref MAILE_RE: Regex = Regex::new(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$").unwrap();
+    static ref MAILE_RE: Regex =
+        Regex::new(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$").unwrap();
 }
 
 // 在actix_web::web::Data之间共享
@@ -56,9 +58,7 @@ async fn main() -> Result<()> {
 
     let manager = RedisConnectionManager::new("redis://localhost").unwrap();
 
-    let redis_pool = r2d2_redis::r2d2::Pool::builder()
-        .build(manager)
-        .unwrap();
+    let redis_pool = r2d2_redis::r2d2::Pool::builder().build(manager).unwrap();
 
     let state = ShareState {
         db_pool,
@@ -72,9 +72,9 @@ async fn main() -> Result<()> {
             .wrap(auth_middleware::Auth)
             .configure(route::init_all)
     })
-        .bind(format!("{}:{}", host, port))?
-        .run()
-        .await?;
+    .bind(format!("{}:{}", host, port))?
+    .run()
+    .await?;
     Ok(())
 }
 

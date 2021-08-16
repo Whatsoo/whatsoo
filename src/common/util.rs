@@ -6,6 +6,8 @@ use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, Transport};
 use lettre_email::Email;
 
+use crate::common::constant::TOKEN_SECRET;
+use crate::model::user::UserToken;
 use anyhow::Result;
 use argon2::password_hash::Error;
 use argon2::{
@@ -14,6 +16,9 @@ use argon2::{
 };
 use captcha::filters::{Cow, Noise, Wave};
 use captcha::{Captcha, Geometry};
+use jsonwebtoken::{
+    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
+};
 use r2d2_redis::r2d2::PooledConnection;
 use r2d2_redis::redis::{FromRedisValue, RedisResult};
 use r2d2_redis::{redis, RedisConnectionManager};
@@ -119,7 +124,7 @@ pub async fn gen_pic_captcha(
     info!("key: {} 图形验证码: {}", &key, &captcha_value);
     redis_set(&key, &captcha_value, 60 * 5, connection).await;
     let vec = c.as_png().unwrap();
-    (captcha_value, vec)
+    (key, vec)
 }
 
 pub async fn validate_captcha(
@@ -140,5 +145,27 @@ pub async fn validate_captcha(
             error!("获取验证码缓存失败, 失败原因: {}", e.to_string());
             false
         }
+    }
+}
+
+pub async fn token_encode(user_token: &UserToken) -> String {
+    let token = encode(
+        &Header::default(),
+        user_token,
+        &EncodingKey::from_secret(TOKEN_SECRET),
+    )
+    .unwrap();
+    token
+}
+
+pub async fn token_decode(user_token: &str) -> UserToken {
+    let token = decode::<UserToken>(
+        user_token,
+        &DecodingKey::from_secret(TOKEN_SECRET),
+        &Validation::default(),
+    );
+    match token {
+        Ok(t) => t.claims,
+        Err(_) => UserToken::default(),
     }
 }

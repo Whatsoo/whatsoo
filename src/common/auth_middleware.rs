@@ -4,10 +4,11 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use crate::common::constant::TOKEN_HEADER_NAME;
+use crate::common::util;
 use actix_web::body::MessageBody;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::HeaderValue;
-use actix_web::Error;
+use actix_web::{error, Error};
 use futures::future::{ok, Ready};
 use futures::Future;
 
@@ -60,13 +61,19 @@ where
             let value = HeaderValue::from_str("").unwrap();
             let token = req.headers().get(TOKEN_HEADER_NAME).unwrap_or(&value);
             // TODO 暂时直接放开
-            Ok(svc.call(req).await?)
             // TODO 判断token存在，游客可以参观的路由,登录后将token放入header中
-            // if token.len() > 0 || req.path().to_string() == "/login" {
-            //     Ok(svc.call(req).await?)
-            // } else {
-            //     Err(error::ErrorUnauthorized("您未登录，请登录后使用此功能"))
-            // }
+            let token = token.to_str().unwrap();
+            info!("{}", token);
+            let decode = util::token_decode(token).await;
+            info!("{:#?}", decode);
+            if decode.pk_id > 0
+                || req.path().to_string() == "/login"
+                || req.path().to_string() == "/captcha"
+            {
+                Ok(svc.call(req).await?)
+            } else {
+                Err(error::ErrorUnauthorized("您未登录，请登录后使用此功能"))
+            }
         })
     }
 }

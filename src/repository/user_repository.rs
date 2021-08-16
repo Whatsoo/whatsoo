@@ -1,4 +1,4 @@
-use crate::model::user::{User, RegisterUser};
+use crate::model::user::{RegisterUser, User};
 use anyhow::Result;
 use sqlx::MySqlPool;
 
@@ -12,9 +12,9 @@ impl User {
             "#,
             email
         )
-            .fetch_one(pool)
-            .await?;
-        info!("{:#?}",rec);
+        .fetch_one(pool)
+        .await?;
+        info!("{:#?}", rec);
         Ok(rec.count)
     }
 
@@ -27,9 +27,9 @@ impl User {
             "#,
             username
         )
-            .fetch_one(pool)
-            .await?;
-        info!("{:#?}",rec);
+        .fetch_one(pool)
+        .await?;
+        info!("{:#?}", rec);
         Ok(rec.count)
     }
 
@@ -45,11 +45,25 @@ impl User {
             user.uk_email,
             user.user_password,
         )
-            .execute(pool)
-            .await?
-            .last_insert_id();
-        info!("插入用户返回值{:#?}",rec);
-        // TODO 正确返回值
+        .execute(pool)
+        .await?
+        .last_insert_id();
+        info!("插入用户返回值{:#?}", rec);
         Ok(rec)
+    }
+
+    pub async fn find_user_by_email(email: &str, pool: &MySqlPool) -> Option<User> {
+        let result = sqlx::query_as!(
+            User,
+            r#"
+            SELECT *
+            FROM user
+            WHERE uk_email = ?
+            "#,
+            email
+        )
+        .fetch_one(pool)
+        .await;
+        Some(result.unwrap())
     }
 }
