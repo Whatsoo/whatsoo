@@ -1,10 +1,11 @@
 use crate::common::api::ApiResult;
 use crate::common::constant::TOKEN_HEADER_NAME;
+use crate::common::err::AppError;
 use crate::common::util;
 use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, UserToken, VerifyStatus};
 use crate::service::user_service;
-use crate::AppState;
 use crate::MAILE_RE;
+use crate::{AppResult, AppState};
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::Local;
 use r2d2_redis::r2d2::PooledConnection;
@@ -64,10 +65,13 @@ async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -
 }
 
 #[get("/verify/email")]
-async fn verify_email(register_user: web::Form<RegisterUser>, state: AppState) -> impl Responder {
-    let connection = &mut state.get_ref().redis_pool.get().unwrap();
+async fn verify_email(
+    register_user: web::Form<RegisterUser>,
+    state: AppState,
+) -> AppResult<impl Responder> {
+    let connection = &mut state.get_redis_conn().await?;
     let pool = &state.get_ref().db_pool;
-    user_service::register_user(register_user.into_inner(), connection, pool).await
+    Ok(user_service::register_user(register_user.into_inner(), connection, pool).await)
 }
 
 #[get("/login")]
@@ -93,9 +97,9 @@ async fn login(login_user: web::Form<LoginUser>, state: AppState) -> impl Respon
         let login_success = util::verify_pwd(&login_user.password, &u.user_password).await;
         if login_success {
             let exp: usize = if login_user.forever {
-                0 as usize
+                (Local::now().timestamp() + 60 * 60 * 24 * 365) as usize
             } else {
-                (Local::now().timestamp() + 60 * 60 * 24 * 30) as usize
+                (Local::now().timestamp() + 60 * 60 * 24 * 7) as usize
             };
             let user_token =
                 util::token_encode(&UserToken::new(u.pk_id, u.uk_username, u.uk_email, exp)).await;

@@ -8,7 +8,6 @@ use lettre_email::Email;
 
 use crate::common::constant::TOKEN_SECRET;
 use crate::model::user::UserToken;
-use anyhow::Result;
 use argon2::password_hash::Error;
 use argon2::{
     password_hash::{PasswordHasher, SaltString},
@@ -162,10 +161,13 @@ pub async fn token_decode(user_token: &str) -> UserToken {
     let token = decode::<UserToken>(
         user_token,
         &DecodingKey::from_secret(TOKEN_SECRET),
-        &Validation::default(),
+        &Validation::new(Algorithm::HS256),
     );
     match token {
         Ok(t) => t.claims,
-        Err(_) => UserToken::default(),
+        Err(e) => {
+            println!("{}", e.to_string());
+            UserToken::default()
+        }
     }
 }

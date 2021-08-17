@@ -1,9 +1,10 @@
+use crate::common::err::AppError;
 use crate::model::user::{RegisterUser, User};
-use anyhow::Result;
+use crate::AppResult;
 use sqlx::MySqlPool;
 
 impl User {
-    pub async fn count_by_email(email: String, pool: &MySqlPool) -> Result<i64> {
+    pub async fn count_by_email(email: String, pool: &MySqlPool) -> AppResult<i64> {
         let rec = sqlx::query!(
             r#"
             SELECT COUNT(*) as count
@@ -13,12 +14,12 @@ impl User {
             email
         )
         .fetch_one(pool)
-        .await?;
+        .await;
         info!("{:#?}", rec);
-        Ok(rec.count)
+        rec.map_err(|e| AppError::DatabaseError(e)).map(|t| t.count)
     }
 
-    pub async fn count_by_username(username: String, pool: &MySqlPool) -> Result<i64> {
+    pub async fn count_by_username(username: String, pool: &MySqlPool) -> AppResult<i64> {
         let rec = sqlx::query!(
             r#"
             SELECT COUNT(*) as count
@@ -33,7 +34,7 @@ impl User {
         Ok(rec.count)
     }
 
-    pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> Result<u64> {
+    pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> AppResult<u64> {
         let rec = sqlx::query!(
             r#"
             INSERT INTO user

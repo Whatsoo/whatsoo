@@ -11,15 +11,18 @@ use std::time::Duration;
 
 use actix_web::http::ContentEncoding;
 use actix_web::{middleware, web, App, HttpServer};
-use anyhow::Result;
 use dotenv::dotenv;
-use r2d2_redis::r2d2::Pool;
+use r2d2_redis::r2d2::{Pool, PooledConnection};
 use r2d2_redis::RedisConnectionManager;
 use regex::Regex;
 use sqlx::mysql::MySqlPoolOptions;
-use sqlx::MySqlPool;
+use sqlx::{Error, MySql, MySqlPool};
 
+use crate::common::err::AppError;
+use crate::model::user::UserToken;
+use chrono::Local;
 use common::auth_middleware;
+use sqlx::pool::PoolConnection;
 
 mod common;
 mod model;
@@ -40,9 +43,23 @@ struct ShareState {
 }
 
 type AppState = web::Data<ShareState>;
+type AppResult<R> = std::result::Result<R, AppError>;
+
+impl ShareState {
+    pub async fn get_redis_conn(&self) -> AppResult<PooledConnection<RedisConnectionManager>> {
+        self.redis_pool
+            .get()
+            .map_err(|e| AppError::RedisConnectionError(e))
+    }
+
+    pub async fn get_mysql_conn(&self) -> AppResult<PoolConnection<MySql>> {
+        let result = self.db_pool.acquire().await;
+        result.map_err(|e| AppError::DatabaseError(e))
+    }
+}
 
 #[actix_web::main]
-async fn main() -> Result<()> {
+async fn main() -> AppResult<()> {
     dotenv().ok();
     init_logger();
     let host = env::var("HOST").expect("HOST is not set in .env file");
