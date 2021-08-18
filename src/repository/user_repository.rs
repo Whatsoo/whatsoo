@@ -5,7 +5,7 @@ use sqlx::MySqlPool;
 
 impl User {
     pub async fn count_by_email(email: String, pool: &MySqlPool) -> AppResult<i64> {
-        let rec = sqlx::query!(
+        sqlx::query!(
             r#"
             SELECT COUNT(*) as count
             FROM user
@@ -14,13 +14,13 @@ impl User {
             email
         )
         .fetch_one(pool)
-        .await;
-        info!("{:#?}", rec);
-        rec.map_err(|e| AppError::DatabaseError(e)).map(|t| t.count)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|res| res.count)
     }
 
     pub async fn count_by_username(username: String, pool: &MySqlPool) -> AppResult<i64> {
-        let rec = sqlx::query!(
+        sqlx::query!(
             r#"
             SELECT COUNT(*) as count
             FROM user
@@ -29,13 +29,13 @@ impl User {
             username
         )
         .fetch_one(pool)
-        .await?;
-        info!("{:#?}", rec);
-        Ok(rec.count)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|res| res.count)
     }
 
     pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> AppResult<u64> {
-        let rec = sqlx::query!(
+        sqlx::query!(
             r#"
             INSERT INTO user
                 (uk_username, uk_email, user_password)
@@ -47,14 +47,13 @@ impl User {
             user.user_password,
         )
         .execute(pool)
-        .await?
-        .last_insert_id();
-        info!("插入用户返回值{:#?}", rec);
-        Ok(rec)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|done| done.last_insert_id())
     }
 
     pub async fn find_user_by_email(email: &str, pool: &MySqlPool) -> Option<User> {
-        let result = sqlx::query_as!(
+        sqlx::query_as!(
             User,
             r#"
             SELECT *
@@ -64,7 +63,8 @@ impl User {
             email
         )
         .fetch_one(pool)
-        .await;
-        Some(result.unwrap())
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .ok()
     }
 }

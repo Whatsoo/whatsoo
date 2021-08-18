@@ -10,6 +10,12 @@ pub enum AppError {
     DatabaseError(#[from] sqlx::Error),
     // #[error("business error")]
     // BusinessError(BusinessErrorType),
+    #[error("Error on encode or decode password")]
+    PwdHashError(#[from] argon2::password_hash::Error),
+    #[error("Error on argon2")]
+    Argon2Error(#[from] argon2::Error),
+    #[error("jwt error")]
+    JWTError(#[from] jsonwebtoken::errors::Error),
     #[error("Error on operate file")]
     IoError(#[from] std::io::Error),
     #[error("Environment variable must be set")]
@@ -30,6 +36,7 @@ impl AppError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+
     pub fn code(&self) -> &str {
         match self {
             AppError::DatabaseError(_) => "DATABASE_ERROR",
@@ -40,6 +47,7 @@ impl AppError {
             AppError::SerdeError(_) => "SERDE_ERROR",
         }
     }
+
     pub fn message(&self) -> String {
         match self {
             AppError::DatabaseError(e) => e.to_string(),
@@ -55,7 +63,7 @@ impl AppError {
 #[derive(Serialize)]
 struct ErrorResponseWrapper {
     code: String,
-    message: String,
+    msg: String,
 }
 
 impl ResponseError for AppError {
@@ -66,7 +74,7 @@ impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         let wrapper = ErrorResponseWrapper {
             code: self.code().to_string(),
-            message: self.message(),
+            msg: self.message(),
         };
         if self.status().is_server_error() {
             error!(

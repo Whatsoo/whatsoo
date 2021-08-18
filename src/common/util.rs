@@ -7,6 +7,7 @@ use lettre::{SmtpClient, Transport};
 use lettre_email::Email;
 
 use crate::common::constant::TOKEN_SECRET;
+use crate::common::err::AppError;
 use crate::model::user::UserToken;
 use argon2::password_hash::Error;
 use argon2::{
@@ -63,17 +64,19 @@ pub async fn send_email(email_receiver: &str) -> String {
 
 pub async fn encode_pwd(pwd: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13).unwrap_or(Argon2::default());
+    let argon2 =
+        Argon2::new(None, 3, 1024, 1, Version::V0x13).map_err(|e| AppError::Argon2Error(e));
+
     let result = argon2
         .hash_password_simple(pwd.as_bytes(), salt.as_ref())
-        .unwrap();
+        .map_err(|e| AppError::PwdHashError(e));
     result.to_string()
 }
 
 pub async fn verify_pwd(input_pwd: &str, db_pwd: &str) -> bool {
-    let db_pwd_hash = PasswordHash::new(db_pwd).unwrap();
-    let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13).unwrap_or(Argon2::default());
-    argon2
+    let db_pwd_hash = PasswordHash::new(db_pwd).map_err(|e| AppError::PwdHashError(e))?;
+    Argon2::new(None, 3, 1024, 1, Version::V0x13)
+        .map_err(|e| AppError::Argon2Error(e))
         .verify_password(input_pwd.as_bytes(), &db_pwd_hash)
         .is_ok()
 }
@@ -122,7 +125,7 @@ pub async fn gen_pic_captcha(
     let key = Uuid::new_v4().to_urn().to_string();
     info!("key: {} 图形验证码: {}", &key, &captcha_value);
     redis_set(&key, &captcha_value, 60 * 5, connection).await;
-    let vec = c.as_png().unwrap();
+    let vec = c.as_png()?;
     (key, vec)
 }
 
@@ -148,13 +151,14 @@ pub async fn validate_captcha(
 }
 
 pub async fn token_encode(user_token: &UserToken) -> String {
-    let token = encode(
+    encode(
         &Header::default(),
         user_token,
         &EncodingKey::from_secret(TOKEN_SECRET),
     )
-    .unwrap();
-    token
+    .map_err(|e| AppError::JWTError(e))
+    .ok()
+    .unwrap()
 }
 
 pub async fn token_decode(user_token: &str) -> UserToken {
