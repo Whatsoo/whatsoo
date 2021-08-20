@@ -1,7 +1,8 @@
+use sqlx::MySqlPool;
+
 use crate::common::err::AppError;
 use crate::model::user::{RegisterUser, User};
 use crate::AppResult;
-use sqlx::MySqlPool;
 
 impl User {
     pub async fn count_by_email(email: String, pool: &MySqlPool) -> AppResult<i64> {
@@ -64,7 +65,6 @@ impl User {
         )
         .fetch_one(pool)
         .await
-        .map_err(|e| AppError::DatabaseError(e))
         .ok()
     }
 }

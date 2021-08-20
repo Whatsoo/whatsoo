@@ -1,19 +1,18 @@
+use std::fmt::{Display, Formatter};
+
 use actix_web::error::ResponseError;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
-use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("databaseError: {0}")]
     DatabaseError(#[from] sqlx::Error),
-    // #[error("business error")]
-    // BusinessError(BusinessErrorType),
+    #[error("business error")]
+    BusinessError(i32, &'static str),
     #[error("Error on encode or decode password")]
     PwdHashError(#[from] argon2::password_hash::Error),
-    #[error("Error on argon2")]
-    Argon2Error(#[from] argon2::Error),
     #[error("jwt error")]
     JWTError(#[from] jsonwebtoken::errors::Error),
     #[error("Error on operate file")]
@@ -24,6 +23,8 @@ pub enum AppError {
     ActixError(#[from] actix_web::Error),
     #[error("Redis Connection Error: {0}")]
     RedisConnectionError(#[from] r2d2_redis::r2d2::Error),
+    #[error("Redis error")]
+    RedisGetError(#[from] r2d2_redis::redis::RedisError),
     #[error("Serde Error: {0}")]
     SerdeError(#[from] serde::de::value::Error),
 }
@@ -45,6 +46,10 @@ impl AppError {
             AppError::ActixError(_) => "SERVER_ERROR",
             AppError::RedisConnectionError(_) => "REDIS_CONNECTION_ERROR",
             AppError::SerdeError(_) => "SERDE_ERROR",
+            AppError::RedisGetError(_) => "Redis_GET_ERROR",
+            AppError::PwdHashError(_) => "PASSWORD_HASH_ERROR",
+            AppError::BusinessError(_, _) => "BUSINESS_ERROR",
+            _ => "INTERNAL_SERVER_ERROR",
         }
     }
 
@@ -56,6 +61,9 @@ impl AppError {
             AppError::ActixError(e) => e.to_string(),
             AppError::RedisConnectionError(e) => e.to_string(),
             AppError::SerdeError(e) => e.to_string(),
+            AppError::RedisGetError(e) => e.to_string(),
+            AppError::BusinessError(_, msg) => msg.to_string(),
+            _ => String::from("Internal server error"),
         }
     }
 }

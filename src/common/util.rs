@@ -2,13 +2,8 @@ extern crate lettre;
 extern crate lettre_email;
 extern crate mime;
 
-use lettre::smtp::authentication::Credentials;
-use lettre::{SmtpClient, Transport};
-use lettre_email::Email;
+use std::ops::DerefMut;
 
-use crate::common::constant::TOKEN_SECRET;
-use crate::common::err::AppError;
-use crate::model::user::UserToken;
 use argon2::password_hash::Error;
 use argon2::{
     password_hash::{PasswordHasher, SaltString},
@@ -19,12 +14,19 @@ use captcha::{Captcha, Geometry};
 use jsonwebtoken::{
     decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
 };
+use lettre::smtp::authentication::Credentials;
+use lettre::{SmtpClient, Transport};
+use lettre_email::Email;
 use r2d2_redis::r2d2::PooledConnection;
 use r2d2_redis::redis::{FromRedisValue, RedisResult};
 use r2d2_redis::{redis, RedisConnectionManager};
 use rand_core::OsRng;
-use std::ops::DerefMut;
 use uuid::Uuid;
+
+use crate::common::constant::TOKEN_SECRET;
+use crate::common::err::AppError;
+use crate::model::user::UserToken;
+use crate::AppResult;
 
 pub async fn send_email(email_receiver: &str) -> String {
     let mine_email = "nova-me@whatsoo.org";
@@ -62,23 +64,24 @@ pub async fn send_email(email_receiver: &str) -> String {
     String::from(verify_code.as_str())
 }
 
-pub async fn encode_pwd(pwd: &str) -> String {
+pub async fn encode_pwd(pwd: &str) -> AppResult<String> {
     let salt = SaltString::generate(&mut OsRng);
-    let argon2 =
-        Argon2::new(None, 3, 1024, 1, Version::V0x13).map_err(|e| AppError::Argon2Error(e));
+    let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13)
+        .map_err(|e| AppError::PwdHashError(e.into()))?;
 
     let result = argon2
         .hash_password_simple(pwd.as_bytes(), salt.as_ref())
-        .map_err(|e| AppError::PwdHashError(e));
-    result.to_string()
+        .map_err(|e| AppError::PwdHashError(e))?;
+    Ok(result.to_string())
 }
 
-pub async fn verify_pwd(input_pwd: &str, db_pwd: &str) -> bool {
+pub async fn verify_pwd(input_pwd: &str, db_pwd: &str) -> AppResult<bool> {
     let db_pwd_hash = PasswordHash::new(db_pwd).map_err(|e| AppError::PwdHashError(e))?;
-    Argon2::new(None, 3, 1024, 1, Version::V0x13)
-        .map_err(|e| AppError::Argon2Error(e))
+    let is_success = Argon2::new(None, 3, 1024, 1, Version::V0x13)
+        .map_err(|e| AppError::PwdHashError(e.into()))?
         .verify_password(input_pwd.as_bytes(), &db_pwd_hash)
-        .is_ok()
+        .is_ok();
+    Ok(is_success)
 }
 
 // expired_time过期时间单位为秒
@@ -99,15 +102,16 @@ pub async fn redis_set(
 pub async fn redis_get<T: FromRedisValue>(
     key: &str,
     connection: &mut PooledConnection<RedisConnectionManager>,
-) -> RedisResult<T> {
+) -> AppResult<T> {
     redis::cmd("GET")
         .arg(key)
         .query::<T>(connection.deref_mut())
+        .map_err(|e| AppError::RedisGetError(e))
 }
 
 pub async fn gen_pic_captcha(
     connection: &mut PooledConnection<RedisConnectionManager>,
-) -> (String, Vec<u8>) {
+) -> AppResult<(String, Vec<u8>)> {
     let mut c = Captcha::new();
     c.add_chars(4)
         .apply_filter(Noise::new(0.0))
@@ -125,8 +129,8 @@ pub async fn gen_pic_captcha(
     let key = Uuid::new_v4().to_urn().to_string();
     info!("key: {} 图形验证码: {}", &key, &captcha_value);
     redis_set(&key, &captcha_value, 60 * 5, connection).await;
-    let vec = c.as_png()?;
-    (key, vec)
+    let vec = c.as_png().unwrap();
+    Ok((key, vec))
 }
 
 pub async fn validate_captcha(
@@ -165,7 +169,7 @@ pub async fn token_decode(user_token: &str) -> UserToken {
     let token = decode::<UserToken>(
         user_token,
         &DecodingKey::from_secret(TOKEN_SECRET),
-        &Validation::new(Algorithm::HS256),
+        &Validation::default(),
     );
     match token {
         Ok(t) => t.claims,

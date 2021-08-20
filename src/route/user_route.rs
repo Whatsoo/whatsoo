@@ -1,3 +1,12 @@
+use std::borrow::BorrowMut;
+
+use actix_web::http::CookieBuilder;
+use actix_web::{get, post, web, HttpResponse, Responder};
+use chrono::Local;
+use r2d2_redis::r2d2::PooledConnection;
+use r2d2_redis::redis::RedisError;
+use r2d2_redis::RedisConnectionManager;
+
 use crate::common::api::ApiResult;
 use crate::common::constant::TOKEN_HEADER_NAME;
 use crate::common::err::AppError;
@@ -6,11 +15,6 @@ use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, UserToken, 
 use crate::service::user_service;
 use crate::MAILE_RE;
 use crate::{AppResult, AppState};
-use actix_web::{get, post, web, HttpResponse, Responder};
-use chrono::Local;
-use r2d2_redis::r2d2::PooledConnection;
-use r2d2_redis::redis::RedisError;
-use r2d2_redis::RedisConnectionManager;
 
 #[get("/user/validate/email/{email}")]
 async fn validate_email(web::Path(email): web::Path<String>, state: AppState) -> impl Responder {
@@ -30,9 +34,9 @@ async fn validate_username(username: web::Path<String>, state: AppState) -> impl
 }
 
 #[get("/captcha")]
-async fn get_captcha(state: AppState) -> impl Responder {
-    let (key, vec) = util::gen_pic_captcha(&mut state.get_ref().redis_pool.get().unwrap()).await;
-    HttpResponse::Ok().header("captcha-key", key).body(vec)
+async fn get_captcha(state: AppState) -> AppResult<HttpResponse> {
+    let (key, vec) = util::gen_pic_captcha(&mut state.get_redis_conn().await?).await?;
+    Ok(HttpResponse::Ok().header("captcha-key", key).body(vec))
 }
 
 #[get("/verify/captcha")]
@@ -75,8 +79,8 @@ async fn verify_email(
 }
 
 #[get("/login")]
-async fn login(login_user: web::Form<LoginUser>, state: AppState) -> impl Responder {
-    let connection = &mut state.get_ref().redis_pool.get().unwrap();
+async fn login(login_user: web::Form<LoginUser>, state: AppState) -> AppResult<HttpResponse> {
+    let connection = &mut state.get_ref().redis_pool.get()?;
     let pool = &state.get_ref().db_pool;
     let is_valid = util::validate_captcha(
         &login_user.captcha_key,
@@ -86,15 +90,14 @@ async fn login(login_user: web::Form<LoginUser>, state: AppState) -> impl Respon
     .await;
     // 验证码不正确直接返回
     if !is_valid {
-        return HttpResponse::Ok().json(
-            ApiResult::ok()
-                .msg("验证码校验失败")
-                .data(VerifyStatus::fail()),
-        );
+        return ApiResult::ok()
+            .msg("验证码校验失败")
+            .data(VerifyStatus::fail())
+            .into();
     }
     let user = User::find_user_by_email(&login_user.email, pool).await;
-    if let Some(u) = user {
-        let login_success = util::verify_pwd(&login_user.password, &u.user_password).await;
+    return if let Some(u) = user {
+        let login_success = util::verify_pwd(&login_user.password, &u.user_password).await?;
         if login_success {
             let exp: usize = if login_user.forever {
                 (Local::now().timestamp() + 60 * 60 * 24 * 365) as usize
@@ -103,27 +106,22 @@ async fn login(login_user: web::Form<LoginUser>, state: AppState) -> impl Respon
             };
             let user_token =
                 util::token_encode(&UserToken::new(u.pk_id, u.uk_username, u.uk_email, exp)).await;
-            return HttpResponse::Ok()
-                .header(TOKEN_HEADER_NAME, user_token)
-                .json(
-                    ApiResult::ok()
-                        .msg("登录成功")
-                        .data(VerifyStatus::success()),
-                );
+            ApiResult::ok()
+                .msg("登录成功")
+                .data(VerifyStatus::success())
+                .into()
         } else {
-            return HttpResponse::Ok().json(
-                ApiResult::error()
-                    .msg("登录失败，用户名或密码错误")
-                    .data(VerifyStatus::fail()),
-            );
+            ApiResult::error()
+                .msg("登录失败，用户名或密码错误")
+                .data(VerifyStatus::fail())
+                .into()
         }
     } else {
-        return HttpResponse::Ok().json(
-            ApiResult::error()
-                .msg("用户不存在")
-                .data(VerifyStatus::fail()),
-        );
-    }
+        ApiResult::error()
+            .msg("登录失败，用户名或密码错误")
+            .data(VerifyStatus::fail())
+            .into()
+    };
 }
 
 // function that will be called on new Application to configure routes for this module

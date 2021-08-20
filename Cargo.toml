@@ -37,7 +37,7 @@ lettre_email = "0.9"
 mime = "0.3.13"
 
 # pwd hash
-argon2 = "0.2"
+argon2 = { version = "0.2", features = ["std", "password-hash"] }
 rand_core = { version = "0.6", features = ["std"] }
 
 # regex

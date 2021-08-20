@@ -1,12 +1,15 @@
 use std::borrow::Cow;
-use actix_web::http::StatusCode;
-use serde::Serialize;
 use std::fmt::{self, Debug, Display};
-use actix_web::{ HttpResponse, Responder, Error, HttpRequest};
+
+use actix_web::http::StatusCode;
+use actix_web::{Error, HttpRequest, HttpResponse, Responder};
 use futures::future::{ready, Ready};
+use serde::Serialize;
+
+use crate::AppResult;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ApiResult<T = ()> {
+pub struct ApiResult<T: Serialize> {
     code: Option<u16>,
     msg: Option<Cow<'static, str>>,
     data: Option<T>,
@@ -50,6 +53,12 @@ impl<T: Serialize> ApiResult<T> {
     pub fn data(mut self, data: T) -> Self {
         self.data = Some(data);
         self
+    }
+}
+
+impl<T: Serialize> Into<AppResult<HttpResponse>> for ApiResult<T> {
+    fn into(self) -> AppResult<HttpResponse> {
+        Ok(HttpResponse::Ok().json(self))
     }
 }
 

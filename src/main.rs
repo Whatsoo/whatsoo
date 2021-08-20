@@ -1,28 +1,29 @@
 #[macro_use]
-extern crate serde;
+extern crate lazy_static;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 extern crate r2d2_redis;
+#[macro_use]
+extern crate serde;
 
 use std::env;
 use std::time::Duration;
 
 use actix_web::http::ContentEncoding;
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{middleware, web, App, HttpRequest, HttpServer, Responder};
+use chrono::Local;
 use dotenv::dotenv;
 use r2d2_redis::r2d2::{Pool, PooledConnection};
 use r2d2_redis::RedisConnectionManager;
 use regex::Regex;
 use sqlx::mysql::MySqlPoolOptions;
+use sqlx::pool::PoolConnection;
 use sqlx::{Error, MySql, MySqlPool};
+
+use common::auth_middleware;
 
 use crate::common::err::AppError;
 use crate::model::user::UserToken;
-use chrono::Local;
-use common::auth_middleware;
-use sqlx::pool::PoolConnection;
 
 mod common;
 mod model;
