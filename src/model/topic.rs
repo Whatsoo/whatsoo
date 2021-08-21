@@ -1,6 +1,6 @@
+use crate::common::date_format;
 use chrono::NaiveDateTime;
 use sqlx::FromRow;
-use crate::common::date_format;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Topic {

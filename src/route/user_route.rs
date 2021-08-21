@@ -1,6 +1,5 @@
 use std::borrow::BorrowMut;
 
-use actix_web::http::CookieBuilder;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::Local;
 use r2d2_redis::r2d2::PooledConnection;
@@ -17,7 +16,10 @@ use crate::MAILE_RE;
 use crate::{AppResult, AppState};
 
 #[get("/user/validate/email/{email}")]
-async fn validate_email(web::Path(email): web::Path<String>, state: AppState) -> impl Responder {
+async fn validate_email(
+    web::Path(email): web::Path<String>,
+    state: AppState,
+) -> impl Responder {
     let legal = MAILE_RE.is_match(&email);
     if !legal {
         return ApiResult::error()
@@ -40,8 +42,11 @@ async fn get_captcha(state: AppState) -> AppResult<HttpResponse> {
 }
 
 #[get("/verify/captcha")]
-async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -> impl Responder {
-    let connection = &mut state.get_ref().redis_pool.get().unwrap();
+async fn verify_captcha(
+    captcha_user: web::Form<CaptchaUser>,
+    state: AppState,
+) -> AppResult<HttpResponse> {
+    let connection = &mut state.get_ref().redis_pool.get()?;
     let is_valid = util::validate_captcha(
         &captcha_user.captcha_key,
         &captcha_user.captcha_value,
@@ -55,16 +60,19 @@ async fn verify_captcha(captcha_user: web::Form<CaptchaUser>, state: AppState) -
             util::redis_set(&captcha_user.email, &email_verify_code, 60 * 50, connection).await;
             return ApiResult::ok()
                 .msg("验证码校验成功，已发送验证码到您邮箱，请查收")
-                .data(VerifyStatus::success());
+                .data(VerifyStatus::success())
+                .into();
         } else {
             return ApiResult::ok()
                 .msg("验证码校验失败, 邮箱格式不合法")
-                .data(VerifyStatus::fail());
+                .data(VerifyStatus::fail())
+                .into();
         }
     } else {
         ApiResult::ok()
             .msg("验证码校验失败")
             .data(VerifyStatus::fail())
+            .into()
     }
 }
 
@@ -105,7 +113,8 @@ async fn login(login_user: web::Form<LoginUser>, state: AppState) -> AppResult<H
                 (Local::now().timestamp() + 60 * 60 * 24 * 7) as usize
             };
             let user_token =
-                util::token_encode(&UserToken::new(u.pk_id, u.uk_username, u.uk_email, exp)).await;
+                util::token_encode(&UserToken::new(u.pk_id, u.uk_username, u.uk_email, exp))
+                    .await;
             ApiResult::ok()
                 .msg("登录成功")
                 .data(VerifyStatus::success())

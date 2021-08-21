@@ -39,7 +39,7 @@ pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl R
             if count == 0 {
                 ApiResult::ok()
                     .data(VerifyStatus::success())
-                    .msg("用户名证成功")
+                    .msg("用户名认证成功")
             } else {
                 ApiResult::error()
                     .data(VerifyStatus::fail())
@@ -50,7 +50,7 @@ pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl R
             error!("用户名验证出错，报错信息: {}", e.to_string());
             ApiResult::error()
                 .data(VerifyStatus::fail())
-                .msg("用户名验证，服务器出错")
+                .msg("用户名验证，服务器错误")
         }
     }
 }

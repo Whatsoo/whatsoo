@@ -34,6 +34,7 @@ mod service;
 lazy_static! {
     static ref MAILE_RE: Regex =
         Regex::new(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$").unwrap();
+    static ref USERNAME_RE: Regex = Regex::new(r"^[a-zA-Z0-9](5,10)$").unwrap();
 }
 
 // 在actix_web::web::Data之间共享

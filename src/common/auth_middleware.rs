@@ -17,7 +17,8 @@ pub struct Auth;
 
 impl<S, B> Transform<S> for Auth
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>
+        + 'static,
     S::Future: 'static,
     B: MessageBody + 'static,
 {
@@ -41,7 +42,8 @@ pub struct AuthMiddleware<S> {
 
 impl<S, B> Service for AuthMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>
+        + 'static,
     S::Future: 'static,
     B: MessageBody + 'static,
 {
