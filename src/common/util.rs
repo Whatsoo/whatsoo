@@ -17,10 +17,9 @@ use jsonwebtoken::{
 use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, Transport};
 use lettre_email::Email;
-use r2d2_redis::r2d2::PooledConnection;
-use r2d2_redis::redis::{FromRedisValue, RedisResult};
-use r2d2_redis::{redis, RedisConnectionManager};
+use r2d2::PooledConnection;
 use rand_core::OsRng;
+use redis::{Client, FromRedisValue};
 use uuid::Uuid;
 
 use crate::common::constant::TOKEN_SECRET;
@@ -54,12 +53,12 @@ pub async fn send_email(email_receiver: &str) -> String {
     let result = mailer.send(email.into());
 
     if result.is_ok() {
-        info!("Email sent");
+        tracing::info!("Email sent");
     } else {
-        info!("Could not send email: {:?}", result);
+        tracing::info!("Could not send email: {:?}", result);
     }
 
-    info!("{:?}", result);
+    tracing::info!("{:?}", result);
     mailer.close();
     String::from(verify_code.as_str())
 }
@@ -69,9 +68,7 @@ pub async fn encode_pwd(pwd: &str) -> AppResult<String> {
     let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13)
         .map_err(|e| AppError::PwdHashError(e.into()))?;
 
-    let result = argon2
-        .hash_password_simple(pwd.as_bytes(), salt.as_ref())
-        .map_err(|e| AppError::PwdHashError(e))?;
+    let result = argon2.hash_password_simple(pwd.as_bytes(), salt.as_ref())?;
     Ok(result.to_string())
 }
 
@@ -89,7 +86,7 @@ pub async fn redis_set(
     key: &str,
     value: &str,
     expired_time: i32,
-    connection: &mut PooledConnection<RedisConnectionManager>,
+    connection: &mut PooledConnection<Client>,
 ) {
     redis::cmd("SET")
         .arg(key)
@@ -101,17 +98,14 @@ pub async fn redis_set(
 
 pub async fn redis_get<T: FromRedisValue>(
     key: &str,
-    connection: &mut PooledConnection<RedisConnectionManager>,
+    connection: &mut PooledConnection<Client>,
 ) -> AppResult<T> {
-    redis::cmd("GET")
+    Ok(redis::cmd("GET")
         .arg(key)
-        .query::<T>(connection.deref_mut())
-        .map_err(|e| AppError::RedisGetError(e))
+        .query::<T>(connection.deref_mut())?)
 }
 
-pub async fn gen_pic_captcha(
-    connection: &mut PooledConnection<RedisConnectionManager>,
-) -> AppResult<(String, Vec<u8>)> {
+pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
     let mut c = Captcha::new();
     c.add_chars(4)
         .apply_filter(Noise::new(0.0))
@@ -127,16 +121,15 @@ pub async fn gen_pic_captcha(
         );
     let captcha_value = c.chars_as_string();
     let key = Uuid::new_v4().to_urn().to_string();
-    info!("key: {} 图形验证码: {}", &key, &captcha_value);
-    redis_set(&key, &captcha_value, 60 * 5, connection).await;
+    tracing::info!("key: {} 图形验证码: {}", &key, &captcha_value);
     let vec = c.as_png().unwrap();
-    Ok((key, vec))
+    Ok((key, captcha_value, vec))
 }
 
 pub async fn validate_captcha(
     key: &str,
     value: &str,
-    connection: &mut PooledConnection<RedisConnectionManager>,
+    connection: &mut PooledConnection<Client>,
 ) -> bool {
     let result = redis_get::<String>(key, connection).await;
     match result {
@@ -154,15 +147,18 @@ pub async fn validate_captcha(
     }
 }
 
-pub async fn token_encode(user_token: &UserToken) -> String {
-    encode(
+pub async fn token_encode(user_token: &UserToken) -> AppResult<String> {
+    let option = encode(
         &Header::default(),
         user_token,
         &EncodingKey::from_secret(TOKEN_SECRET),
     )
     .map_err(|e| AppError::JWTError(e))
-    .ok()
-    .unwrap()
+    .ok();
+    match option {
+        None => Err(AppError::BusinessError(500, "token解密失败")),
+        Some(s) => Ok(s),
+    }
 }
 
 pub async fn token_decode(user_token: &str) -> UserToken {

@@ -1,6 +1,5 @@
-use actix_web::Responder;
-use r2d2_redis::r2d2::PooledConnection;
-use r2d2_redis::RedisConnectionManager;
+use r2d2::PooledConnection;
+use redis::Client;
 use sqlx::MySqlPool;
 
 use crate::common::api::ApiResult;
@@ -32,7 +31,10 @@ pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<Ve
     }
 }
 
-pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl Responder {
+pub async fn check_username_exists(
+    username: String,
+    pool: &MySqlPool,
+) -> ApiResult<VerifyStatus> {
     let exists = User::count_by_username(username, pool).await;
     match exists {
         Ok(count) => {
@@ -57,7 +59,7 @@ pub async fn check_username_exists(username: String, pool: &MySqlPool) -> impl R
 
 pub async fn register_user(
     mut register_user: RegisterUser,
-    connection: &mut PooledConnection<RedisConnectionManager>,
+    connection: &mut PooledConnection<Client>,
     pool: &MySqlPool,
 ) -> AppResult<ApiResult<VerifyStatus>> {
     let email = &register_user.uk_email;
@@ -70,7 +72,7 @@ pub async fn register_user(
         register_user.user_password = util::encode_pwd(&register_user.user_password).await?;
         match User::insert_one_user(register_user, pool).await {
             Ok(id) => {
-                info!("用户注册成功，用户id: {}", id);
+                tracing::info!("用户注册成功，用户id: {}", id);
                 Ok(ApiResult::ok()
                     .msg("邮箱验证码校验正确，注册成功")
                     .data(VerifyStatus::success()))

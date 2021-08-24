@@ -1,9 +1,14 @@
 use std::borrow::Cow;
+use std::convert::Infallible;
 use std::fmt::{self, Debug, Display};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use actix_web::http::StatusCode;
-use actix_web::{Error, HttpRequest, HttpResponse, Responder};
-use futures::future::{ready, Ready};
+use axum::body::{Full, HttpBody};
+use axum::http::{header, HeaderMap, HeaderValue, Response, StatusCode};
+use axum::response::IntoResponse;
+use axum::Json;
+use bytes::Bytes;
 use serde::Serialize;
 
 use crate::AppResult;
@@ -56,37 +61,39 @@ impl<T: Serialize> ApiResult<T> {
     }
 }
 
-impl<T: Serialize> Into<AppResult<HttpResponse>> for ApiResult<T> {
-    fn into(self) -> AppResult<HttpResponse> {
-        Ok(HttpResponse::Ok().json(self))
-    }
-}
-
 impl<T: Debug + Serialize> Display for ApiResult<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-// impl<T: Debug + Serialize> ResponseError for ApiResult<T> {
-//     fn status_code(&self) -> StatusCode {
-//         StatusCode::OK
-//     }
-//     fn error_response(&self) -> HttpResponse {
-//         self.to_resp()
-//     }
-// }
+impl<T: Serialize> Into<AppResult<ApiResult<T>>> for ApiResult<T> {
+    fn into(self) -> AppResult<ApiResult<T>> {
+        Ok(self)
+    }
+}
 
-impl<T: Serialize> Responder for ApiResult<T> {
-    type Error = Error;
-    type Future = Ready<Result<HttpResponse, Error>>;
+impl<T: Serialize> IntoResponse for ApiResult<T> {
+    type Body = Full<Bytes>;
+    type BodyError = Infallible;
 
-    fn respond_to(self, _req: &HttpRequest) -> Self::Future {
-        let body = serde_json::to_string(&self).unwrap();
+    fn into_response(self) -> Response<Self::Body> {
+        let bytes = match serde_json::to_vec(&self) {
+            Ok(res) => res,
+            Err(err) => {
+                return Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Full::from(err.to_string()))
+                    .unwrap();
+            }
+        };
 
-        // Create response and set content type
-        ready(Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(body)))
+        let mut res = Response::new(Full::from(bytes));
+        res.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        res
     }
 }

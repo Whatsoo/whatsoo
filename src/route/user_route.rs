@@ -1,10 +1,13 @@
 use std::borrow::BorrowMut;
 
-use actix_web::{get, post, web, HttpResponse, Responder};
+use axum::extract::{Extension, Form, Path};
+use axum::handler::{get, post};
+use axum::http::header::HeaderName;
+use axum::http::{HeaderMap, HeaderValue, Response, StatusCode};
+use axum::response::{Headers, IntoResponse};
+use axum::routing::BoxRoute;
+use axum::{extract, Router};
 use chrono::Local;
-use r2d2_redis::r2d2::PooledConnection;
-use r2d2_redis::redis::RedisError;
-use r2d2_redis::RedisConnectionManager;
 
 use crate::common::api::ApiResult;
 use crate::common::constant::TOKEN_HEADER_NAME;
@@ -13,40 +16,55 @@ use crate::common::util;
 use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, UserToken, VerifyStatus};
 use crate::service::user_service;
 use crate::MAILE_RE;
-use crate::{AppResult, AppState};
+use crate::{AppResult, ShareState};
 
-#[get("/user/validate/email/{email}")]
-async fn validate_email(
-    web::Path(email): web::Path<String>,
-    state: AppState,
-) -> impl Responder {
+pub(crate) async fn validate_email(
+    Path(email): Path<String>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<VerifyStatus>> {
     let legal = MAILE_RE.is_match(&email);
     if !legal {
         return ApiResult::error()
             .data(VerifyStatus::fail())
-            .msg("邮箱格式不合法，请重新出入邮箱");
+            .msg("邮箱格式不合法，请重新出入邮箱")
+            .into();
     } else {
-        user_service::check_email_exists(email, &state.get_ref().db_pool).await
+        user_service::check_email_exists(email, &state.db_pool)
+            .await
+            .into()
     }
 }
 
-#[get("/user/validate/username/{username}")]
-async fn validate_username(username: web::Path<String>, state: AppState) -> impl Responder {
-    user_service::check_username_exists(username.into_inner(), &state.get_ref().db_pool).await
+pub(crate) async fn validate_username(
+    Path(username): Path<String>,
+    state: Extension<ShareState>,
+) -> ApiResult<VerifyStatus> {
+    user_service::check_username_exists(username, &state.db_pool).await
 }
 
-#[get("/captcha")]
-async fn get_captcha(state: AppState) -> AppResult<HttpResponse> {
-    let (key, vec) = util::gen_pic_captcha(&mut state.get_redis_conn().await?).await?;
-    Ok(HttpResponse::Ok().header("captcha-key", key).body(vec))
+pub(crate) async fn get_captcha(
+    state: Extension<ShareState>,
+) -> AppResult<(StatusCode, HeaderMap, Vec<u8>)> {
+    let conn = &mut state.get_redis_conn().await?;
+    let (key, captcha_value, vec) = util::gen_pic_captcha().await?;
+    util::redis_set(&key, &captcha_value, 60 * 5, conn).await;
+    let mut headers = HeaderMap::with_capacity(1usize);
+    headers.insert(
+        HeaderName::from_static("captcha-key"),
+        HeaderValue::from_static(Box::leak(key.into_boxed_str())),
+    );
+    headers.insert(
+        HeaderName::from_static("content-type"),
+        HeaderValue::from_static("image/png"),
+    );
+    Ok((StatusCode::OK, headers, vec))
 }
 
-#[get("/verify/captcha")]
-async fn verify_captcha(
-    captcha_user: web::Form<CaptchaUser>,
-    state: AppState,
-) -> AppResult<HttpResponse> {
-    let connection = &mut state.get_ref().redis_pool.get()?;
+pub(crate) async fn verify_captcha(
+    captcha_user: Form<CaptchaUser>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<VerifyStatus>> {
+    let connection = &mut state.get_redis_conn().await?;
     let is_valid = util::validate_captcha(
         &captcha_user.captcha_key,
         &captcha_user.captcha_value,
@@ -76,20 +94,21 @@ async fn verify_captcha(
     }
 }
 
-#[get("/verify/email")]
-async fn verify_email(
-    register_user: web::Form<RegisterUser>,
-    state: AppState,
-) -> AppResult<impl Responder> {
+pub(crate) async fn verify_email(
+    register_user: Form<RegisterUser>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<VerifyStatus>> {
     let connection = &mut state.get_redis_conn().await?;
-    let pool = &state.get_ref().db_pool;
-    Ok(user_service::register_user(register_user.into_inner(), connection, pool).await)
+    let pool = &state.db_pool;
+    user_service::register_user(register_user.0, connection, pool).await
 }
 
-#[get("/login")]
-async fn login(login_user: web::Form<LoginUser>, state: AppState) -> AppResult<HttpResponse> {
-    let connection = &mut state.get_ref().redis_pool.get()?;
-    let pool = &state.get_ref().db_pool;
+pub(crate) async fn login(
+    login_user: Form<LoginUser>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<VerifyStatus>> {
+    let connection = &mut state.get_redis_conn().await?;
+    let pool = &state.db_pool;
     let is_valid = util::validate_captcha(
         &login_user.captcha_key,
         &login_user.captcha_value,
@@ -131,15 +150,4 @@ async fn login(login_user: web::Form<LoginUser>, state: AppState) -> AppResult<H
             .data(VerifyStatus::fail())
             .into()
     };
-}
-
-// function that will be called on new Application to configure routes for this module
-#[inline]
-pub fn init(cfg: &mut web::ServiceConfig) {
-    cfg.service(verify_email)
-        .service(validate_email)
-        .service(validate_username)
-        .service(get_captcha)
-        .service(verify_captcha)
-        .service(login);
 }

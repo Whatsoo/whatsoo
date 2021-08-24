@@ -2,28 +2,35 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate r2d2_redis;
 #[macro_use]
 extern crate serde;
 
+use std::convert::Infallible;
 use std::env;
+use std::net::SocketAddr;
 use std::time::Duration;
 
-use actix_web::http::ContentEncoding;
-use actix_web::{middleware, web, App, HttpRequest, HttpServer, Responder};
+use axum::body::Body;
+use axum::http::Request;
+use axum::service::get;
+use axum::{AddExtensionLayer, Router};
 use chrono::Local;
 use dotenv::dotenv;
-use r2d2_redis::r2d2::{Pool, PooledConnection};
-use r2d2_redis::RedisConnectionManager;
+use r2d2::{Pool, PooledConnection};
+use redis::Client;
 use regex::Regex;
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::pool::PoolConnection;
 use sqlx::{Error, MySql, MySqlPool};
+use tower::filter::AsyncFilterLayer;
+use tower::ServiceBuilder;
+use tower_http::compression::CompressionLayer;
 
 use common::auth_middleware;
 
 use crate::common::err::AppError;
 use crate::model::user::UserToken;
+use crate::route::user_route;
 
 mod common;
 mod model;
@@ -37,33 +44,32 @@ lazy_static! {
     static ref USERNAME_RE: Regex = Regex::new(r"^[a-zA-Z0-9](5,10)$").unwrap();
 }
 
-// 在actix_web::web::Data之间共享
 #[derive(Clone)]
 struct ShareState {
     pub db_pool: MySqlPool,
-    pub redis_pool: Pool<RedisConnectionManager>,
+    pub redis_pool: Pool<Client>,
 }
 
-type AppState = web::Data<ShareState>;
 type AppResult<R> = std::result::Result<R, AppError>;
 
 impl ShareState {
-    pub async fn get_redis_conn(&self) -> AppResult<PooledConnection<RedisConnectionManager>> {
-        self.redis_pool
-            .get()
-            .map_err(|e| AppError::RedisConnectionError(e))
+    pub async fn get_redis_conn(&self) -> AppResult<PooledConnection<Client>> {
+        Ok(self.redis_pool.get()?)
     }
 
     pub async fn get_mysql_conn(&self) -> AppResult<PoolConnection<MySql>> {
-        let result = self.db_pool.acquire().await;
-        result.map_err(|e| AppError::DatabaseError(e))
+        Ok(self.db_pool.acquire().await?)
     }
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> AppResult<()> {
     dotenv().ok();
-    init_logger();
+    // Set the RUST_LOG, if it hasn't been explicitly defined
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "whatsoo=info")
+    }
+    tracing_subscriber::fmt::init();
     let host = env::var("HOST").expect("HOST is not set in .env file");
     let port = env::var("PORT").expect("PORT is not set in .env file");
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -75,47 +81,42 @@ async fn main() -> AppResult<()> {
         .connect(&db_url)
         .await?;
 
-    let manager = RedisConnectionManager::new("redis://localhost").unwrap();
-
-    let redis_pool = r2d2_redis::r2d2::Pool::builder().build(manager).unwrap();
-
+    let client = redis::Client::open("redis://127.0.0.1/")?;
+    let redis_pool = r2d2::Pool::builder()
+        .max_size(20)
+        .min_idle(Some(10))
+        .build(client)?;
     let state = ShareState {
         db_pool,
         redis_pool,
     };
-    HttpServer::new(move || {
-        App::new()
-            .data(state.clone())
-            .wrap(middleware::Logger::new("%r %s"))
-            .wrap(middleware::Compress::new(ContentEncoding::Br))
-            .wrap(auth_middleware::Auth)
-            .configure(route::init_all)
-    })
-    .bind(format!("{}:{}", host, port))?
-    .run()
-    .await?;
+
+    let middleware_stack = ServiceBuilder::new()
+        // Return an error after 30 seconds
+        .timeout(Duration::from_secs(30))
+        // Shed load if we're receiving too many requests
+        .load_shed()
+        // Process at most 100 requests concurrently
+        .concurrency_limit(1000)
+        // Compress response bodies
+        .layer(CompressionLayer::new().br(true))
+        .layer(AsyncFilterLayer::new(map_request))
+        .layer(AddExtensionLayer::new(state))
+        .into_inner();
+
+    let app = route::init().layer(middleware_stack);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    tracing::debug!("listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
     Ok(())
 }
 
-#[inline]
-fn init_logger() {
-    use chrono::Local;
-    use std::io::Write;
-
-    std::env::set_var("RUST_LOG", "info");
-    let env = env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info");
-    // 设置日志打印格式
-    env_logger::Builder::from_env(env)
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} {} [{}] {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.module_path().unwrap_or("<unnamed>"),
-                &record.args()
-            )
-        })
-        .init();
-    info!("env_logger initialized.");
+async fn map_request(req: Request<Body>) -> Result<Request<Body>, Infallible> {
+    tracing::info!("path is : {} [{}]", req.method(), req.uri().path());
+    // todo!("添加过滤条件，检查Token是否过期");
+    Ok(req)
 }
