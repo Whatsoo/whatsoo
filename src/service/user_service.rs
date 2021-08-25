@@ -3,7 +3,6 @@ use redis::Client;
 use sqlx::MySqlPool;
 
 use crate::common::api::ApiResult;
-use crate::common::err::AppError;
 use crate::common::util;
 use crate::model::user::{RegisterUser, User, VerifyStatus};
 use crate::AppResult;
@@ -13,13 +12,9 @@ pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<Ve
     match exists {
         Ok(count) => {
             if count == 0 {
-                ApiResult::ok()
-                    .data(VerifyStatus::success())
-                    .msg("邮箱验证成功")
+                ApiResult::ok().data(VerifyStatus::success()).msg("邮箱验证成功")
             } else {
-                ApiResult::error()
-                    .data(VerifyStatus::fail())
-                    .msg("邮箱已注册，请登录")
+                ApiResult::error().data(VerifyStatus::fail()).msg("邮箱已注册，请登录")
             }
         }
         Err(e) => {
@@ -31,17 +26,12 @@ pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<Ve
     }
 }
 
-pub async fn check_username_exists(
-    username: String,
-    pool: &MySqlPool,
-) -> ApiResult<VerifyStatus> {
+pub async fn check_username_exists(username: String, pool: &MySqlPool) -> ApiResult<VerifyStatus> {
     let exists = User::count_by_username(username, pool).await;
     match exists {
         Ok(count) => {
             if count == 0 {
-                ApiResult::ok()
-                    .data(VerifyStatus::success())
-                    .msg("用户名认证成功")
+                ApiResult::ok().data(VerifyStatus::success()).msg("用户名认证成功")
             } else {
                 ApiResult::error()
                     .data(VerifyStatus::fail())
@@ -83,8 +73,6 @@ pub async fn register_user(
             }
         }
     } else {
-        Ok(ApiResult::ok()
-            .msg("邮箱验证码校验失败")
-            .data(VerifyStatus::fail()))
+        Ok(ApiResult::ok().msg("邮箱验证码校验失败").data(VerifyStatus::fail()))
     }
 }

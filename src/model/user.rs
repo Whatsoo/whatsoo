@@ -1,6 +1,11 @@
-use crate::common::date_format;
+use axum::extract::{FromRequest, RequestParts};
 use sqlx::types::chrono::NaiveDateTime;
 use sqlx::FromRow;
+
+use crate::common::constant::TOKEN_HEADER_NAME;
+use crate::common::date_format;
+use crate::common::err::AppError;
+use crate::common::util;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
@@ -60,6 +65,30 @@ impl UserToken {
             email,
             exp,
         }
+    }
+}
+
+#[async_trait]
+impl<B> FromRequest<B> for UserToken
+where
+    B: Send,
+{
+    type Rejection = AppError;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let token_value = req
+            .headers()
+            .and_then(|headers| headers.get(TOKEN_HEADER_NAME))
+            .ok_or(AppError::BusinessError(500, "TOKEN不存在"))?
+            .to_str()
+            .map_err(|e| {
+                error!("TOKEN解析到字符串出错: {}", e.to_string());
+                AppError::BusinessError(500, "TOKEN已失效，请重新登录")
+            })?;
+        let user_token = util::token_decode(token_value)
+            .await
+            .ok_or(AppError::BusinessError(500, "TOKEN已失效，请重新登录"))?;
+        Ok(user_token)
     }
 }
 

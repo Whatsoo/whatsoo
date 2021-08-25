@@ -8,12 +8,14 @@ edition = "2018"
 
 [dependencies]
 # axum
-axum = "0.2.0"
+axum = "0.2.1"
 tokio = { version = "1.10.0", features = ["full"] }
+headers = "0.3.4"
 tracing = "0.1"
 tracing-subscriber = "0.2"
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.1", features = ["add-extension", "compression-br", "trace"] }
+async-trait = "0.1.51"
 
 # bytes
 bytes = "1.0.1"

@@ -1,13 +1,10 @@
 use std::borrow::Cow;
 use std::convert::Infallible;
 use std::fmt::{self, Debug, Display};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
-use axum::body::{Full, HttpBody};
-use axum::http::{header, HeaderMap, HeaderValue, Response, StatusCode};
+use axum::body::Full;
+use axum::http::{header, HeaderValue, Response, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
 use bytes::Bytes;
 use serde::Serialize;
 
@@ -90,10 +87,8 @@ impl<T: Serialize> IntoResponse for ApiResult<T> {
         };
 
         let mut res = Response::new(Full::from(bytes));
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/json"),
-        );
+        res.headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
         res
     }
 }

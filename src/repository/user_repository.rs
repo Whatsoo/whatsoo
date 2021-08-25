@@ -53,7 +53,7 @@ impl User {
         .map(|done| done.last_insert_id())
     }
 
-    pub async fn find_user_by_email(email: &str, pool: &MySqlPool) -> Option<User> {
+    pub async fn find_user_by_email(email: &str, pool: &MySqlPool) -> AppResult<User> {
         sqlx::query_as!(
             User,
             r#"
@@ -65,6 +65,6 @@ impl User {
         )
         .fetch_one(pool)
         .await
-        .ok()
+        .map_err(|_| AppError::BusinessError(500, "登录失败，用户名或密码错误"))
     }
 }

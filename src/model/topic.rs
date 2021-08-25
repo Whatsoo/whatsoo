@@ -1,6 +1,7 @@
-use crate::common::date_format;
 use chrono::NaiveDateTime;
 use sqlx::FromRow;
+
+use crate::common::date_format;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Topic {
@@ -11,6 +12,7 @@ pub struct Topic {
     pub tags: String,
     pub like_times: u32,
     pub click_times: u32,
+    pub top: u8,
     #[serde(with = "date_format")]
     pub create_time: NaiveDateTime,
     pub create_user: u64,

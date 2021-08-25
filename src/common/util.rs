@@ -4,16 +4,13 @@ extern crate mime;
 
 use std::ops::DerefMut;
 
-use argon2::password_hash::Error;
 use argon2::{
     password_hash::{PasswordHasher, SaltString},
     Argon2, PasswordHash, PasswordVerifier, Version,
 };
 use captcha::filters::{Cow, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use jsonwebtoken::{
-    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
-};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, Transport};
 use lettre_email::Email;
@@ -65,8 +62,7 @@ pub async fn send_email(email_receiver: &str) -> String {
 
 pub async fn encode_pwd(pwd: &str) -> AppResult<String> {
     let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13)
-        .map_err(|e| AppError::PwdHashError(e.into()))?;
+    let argon2 = Argon2::new(None, 3, 1024, 1, Version::V0x13).map_err(|e| AppError::PwdHashError(e.into()))?;
 
     let result = argon2.hash_password_simple(pwd.as_bytes(), salt.as_ref())?;
     Ok(result.to_string())
@@ -82,12 +78,7 @@ pub async fn verify_pwd(input_pwd: &str, db_pwd: &str) -> AppResult<bool> {
 }
 
 // expired_time过期时间单位为秒
-pub async fn redis_set(
-    key: &str,
-    value: &str,
-    expired_time: i32,
-    connection: &mut PooledConnection<Client>,
-) {
+pub async fn redis_set(key: &str, value: &str, expired_time: i32, connection: &mut PooledConnection<Client>) {
     redis::cmd("SET")
         .arg(key)
         .arg(value)
@@ -96,13 +87,8 @@ pub async fn redis_set(
         .execute(connection.deref_mut());
 }
 
-pub async fn redis_get<T: FromRedisValue>(
-    key: &str,
-    connection: &mut PooledConnection<Client>,
-) -> AppResult<T> {
-    Ok(redis::cmd("GET")
-        .arg(key)
-        .query::<T>(connection.deref_mut())?)
+pub async fn redis_get<T: FromRedisValue>(key: &str, connection: &mut PooledConnection<Client>) -> AppResult<T> {
+    Ok(redis::cmd("GET").arg(key).query::<T>(connection.deref_mut())?)
 }
 
 pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
@@ -126,52 +112,35 @@ pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
     Ok((key, captcha_value, vec))
 }
 
-pub async fn validate_captcha(
-    key: &str,
-    value: &str,
-    connection: &mut PooledConnection<Client>,
-) -> bool {
+pub async fn validate_captcha(key: &str, value: &str, connection: &mut PooledConnection<Client>) -> bool {
     let result = redis_get::<String>(key, connection).await;
     match result {
-        Ok(v) => {
-            if v.eq(value) {
-                true
-            } else {
-                false
-            }
-        }
-        Err(e) => {
-            error!("获取验证码缓存失败, 失败原因: {}", e.to_string());
-            false
-        }
+        Ok(v) => v.eq(value),
+        Err(_) => false,
     }
 }
 
 pub async fn token_encode(user_token: &UserToken) -> AppResult<String> {
-    let option = encode(
-        &Header::default(),
-        user_token,
-        &EncodingKey::from_secret(TOKEN_SECRET),
-    )
-    .map_err(|e| AppError::JWTError(e))
-    .ok();
+    let option = encode(&Header::default(), user_token, &EncodingKey::from_secret(TOKEN_SECRET))
+        .map_err(AppError::JWTError)
+        .ok();
     match option {
         None => Err(AppError::BusinessError(500, "token解密失败")),
         Some(s) => Ok(s),
     }
 }
 
-pub async fn token_decode(user_token: &str) -> UserToken {
+pub async fn token_decode(user_token: &str) -> Option<UserToken> {
     let token = decode::<UserToken>(
         user_token,
         &DecodingKey::from_secret(TOKEN_SECRET),
         &Validation::default(),
     );
     match token {
-        Ok(t) => t.claims,
+        Ok(t) => Some(t.claims),
         Err(e) => {
-            println!("{}", e.to_string());
-            UserToken::default()
+            error!("{}", e.to_string());
+            None
         }
     }
 }
