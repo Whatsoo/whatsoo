@@ -1,27 +1,33 @@
 #[macro_use]
+extern crate async_trait;
+#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate tracing;
-#[macro_use]
-extern crate async_trait;
 
+use std::borrow::BorrowMut;
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
+use argon2::password_hash::SaltString;
 use axum::body::Body;
 use axum::http::Request;
 use axum::AddExtensionLayer;
 use dotenv::dotenv;
+use lettre::smtp::authentication::Credentials;
+use lettre::{SmtpClient, SmtpTransport};
 use r2d2::{Pool, PooledConnection};
 use redis::Client;
 use regex::Regex;
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::pool::PoolConnection;
 use sqlx::{MySql, MySqlPool};
+use tokio::sync::Mutex;
 use tower::filter::AsyncFilterLayer;
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
@@ -44,6 +50,7 @@ lazy_static! {
 struct ShareState {
     pub db_pool: MySqlPool,
     pub redis_pool: Pool<Client>,
+    pub smtp_transport: Arc<Mutex<SmtpTransport>>,
 }
 
 type AppResult<R> = std::result::Result<R, AppError>;
@@ -77,7 +84,23 @@ async fn main() -> AppResult<()> {
 
     let client = redis::Client::open("redis://127.0.0.1/")?;
     let redis_pool = r2d2::Pool::builder().max_size(20).min_idle(Some(10)).build(client)?;
-    let state = ShareState { db_pool, redis_pool };
+    let mine_email = "nova-me@whatsoo.org";
+    let smtp_server = "smtp.exmail.qq.com";
+    let password = "Zsl19951210"; //需要生成应用专用密码
+
+    let creds = Credentials::new(mine_email.to_string(), password.to_string());
+
+    // Open connection to Gmail
+    let mut mailer = SmtpClient::new_simple(smtp_server)
+        .unwrap()
+        .credentials(creds)
+        .transport();
+    let smtp_transport = Arc::new(Mutex::new(mailer));
+    let state = ShareState {
+        db_pool,
+        redis_pool,
+        smtp_transport,
+    };
 
     let middleware_stack = ServiceBuilder::new()
         .timeout(Duration::from_secs(30))

@@ -17,6 +17,7 @@ use lettre_email::Email;
 use r2d2::PooledConnection;
 use rand_core::OsRng;
 use redis::{Client, FromRedisValue};
+use tokio::sync::MutexGuard;
 use uuid::Uuid;
 
 use crate::common::constant::TOKEN_SECRET;
@@ -24,40 +25,30 @@ use crate::common::err::AppError;
 use crate::model::user::UserToken;
 use crate::AppResult;
 
-pub async fn send_email(email_receiver: &str) -> String {
+use self::lettre::SmtpTransport;
+
+pub async fn send_email(email_receiver: &str, verify_code: &str, mut smtp_transport: MutexGuard<'_, SmtpTransport>) {
     let mine_email = "nova-me@whatsoo.org";
     let smtp_server = "smtp.exmail.qq.com";
     let password = "Zsl19951210"; //需要生成应用专用密码
-    let verify_code = SaltString::generate(&mut OsRng);
-
-    let creds = Credentials::new(mine_email.to_string(), password.to_string());
-
-    // Open connection to Gmail
-    let mut mailer = SmtpClient::new_simple(smtp_server)
-        .unwrap()
-        .credentials(creds)
-        .transport();
 
     let email = Email::builder()
         .to(email_receiver)
         .from(mine_email)
         .subject("whatsoo论坛邮箱验证码")
-        .html(format!("<h3>{}</h3>", verify_code.as_str()))
+        .html(format!("<h3>{}</h3>", verify_code))
         .build()
         .unwrap();
 
     // Send the email
-    let result = mailer.send(email.into());
+    let result = smtp_transport.send(email.into());
 
     if result.is_ok() {
         tracing::info!("Email sent");
     } else {
-        tracing::info!("Could not send email: {:?}", result);
+        info!("Could not send email: {:?}", result);
     }
-
-    tracing::info!("{:?}", result);
-    mailer.close();
-    String::from(verify_code.as_str())
+    info!("{:?}", result);
 }
 
 pub async fn encode_pwd(pwd: &str) -> AppResult<String> {
@@ -107,7 +98,7 @@ pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
         );
     let captcha_value = c.chars_as_string();
     let key = Uuid::new_v4().to_urn().to_string();
-    tracing::info!("key: {} 图形验证码: {}", &key, &captcha_value);
+    info!("key: {} 图形验证码: {}", &key, &captcha_value);
     let vec = c.as_png().unwrap();
     Ok((key, captcha_value, vec))
 }

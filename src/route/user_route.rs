@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use argon2::password_hash::rand_core::OsRng;
+use argon2::password_hash::SaltString;
 use axum::extract::{Extension, Form, Path};
 use axum::http::header::HeaderName;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -56,10 +60,16 @@ pub(crate) async fn verify_captcha(
     let connection = &mut state.get_redis_conn().await?;
     let is_valid = util::validate_captcha(&captcha_user.captcha_key, &captcha_user.captcha_value, connection).await;
     if is_valid {
+        // todo!("删除验证码缓存")
         let legal = MAILE_RE.is_match(&captcha_user.email);
         if legal {
-            let email_verify_code = util::send_email(&captcha_user.email).await;
-            util::redis_set(&captcha_user.email, &email_verify_code, 60 * 50, connection).await;
+            let arc = Arc::clone(&state.smtp_transport);
+            let verify_code = String::from(SaltString::generate(&mut OsRng).as_str());
+            util::redis_set(&captcha_user.email, &verify_code, 60 * 50, connection).await;
+            tokio::spawn(async move {
+                let smtp_transport = arc.lock().await;
+                util::send_email(&captcha_user.email, &verify_code, smtp_transport).await;
+            });
             ApiResult::ok()
                 .msg("验证码校验成功，已发送验证码到您邮箱，请查收")
                 .data(VerifyStatus::success())
