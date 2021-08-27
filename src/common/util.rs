@@ -11,8 +11,7 @@ use argon2::{
 use captcha::filters::{Cow, Noise, Wave};
 use captcha::{Captcha, Geometry};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use lettre::smtp::authentication::Credentials;
-use lettre::{SmtpClient, Transport};
+use lettre::Transport;
 use lettre_email::Email;
 use r2d2::PooledConnection;
 use rand_core::OsRng;
@@ -29,8 +28,6 @@ use self::lettre::SmtpTransport;
 
 pub async fn send_email(email_receiver: &str, verify_code: &str, mut smtp_transport: MutexGuard<'_, SmtpTransport>) {
     let mine_email = "nova-me@whatsoo.org";
-    let smtp_server = "smtp.exmail.qq.com";
-    let password = "Zsl19951210"; //需要生成应用专用密码
 
     let email = Email::builder()
         .to(email_receiver)
@@ -103,11 +100,21 @@ pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
     Ok((key, captcha_value, vec))
 }
 
-pub async fn validate_captcha(key: &str, value: &str, connection: &mut PooledConnection<Client>) -> bool {
-    let result = redis_get::<String>(key, connection).await;
-    match result {
-        Ok(v) => v.eq(value),
-        Err(_) => false,
+pub async fn verify_captcha(key: &str, value: &str, connection: &mut PooledConnection<Client>) -> AppResult<()> {
+    let result = redis_get::<String>(key, connection).await?;
+    if result.eq(value) {
+        Ok(())
+    } else {
+        Err(AppError::BusinessError(500, "验证码错误，请重新输入"))
+    }
+}
+
+pub async fn validate_email(email: &str) -> AppResult<()> {
+    use crate::MAILE_RE;
+    if MAILE_RE.is_match(email) {
+        Ok(())
+    } else {
+        Err(AppError::BusinessError(500, "邮箱格式不正确"))
     }
 }
 

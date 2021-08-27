@@ -10,24 +10,16 @@ use chrono::Local;
 use crate::common::api::ApiResult;
 use crate::common::constant::TOKEN_HEADER_NAME;
 use crate::common::util;
-use crate::model::user::{CaptchaUser, LoginUser, RegisterUser, User, UserToken, VerifyStatus};
+use crate::model::user::{CaptchaUser, FindUserPwd, LoginUser, RegisterUser, User, UserToken, VerifyStatus};
 use crate::service::user_service;
-use crate::MAILE_RE;
 use crate::{AppResult, ShareState};
 
 pub(crate) async fn validate_email(
     Path(email): Path<String>,
     state: Extension<ShareState>,
 ) -> AppResult<ApiResult<VerifyStatus>> {
-    let legal = MAILE_RE.is_match(&email);
-    if !legal {
-        ApiResult::error()
-            .data(VerifyStatus::fail())
-            .msg("邮箱格式不合法，请重新出入邮箱")
-            .into()
-    } else {
-        user_service::check_email_exists(email, &state.db_pool).await.into()
-    }
+    util::validate_email(&email).await?;
+    user_service::check_email_exists(email, &state.db_pool).await.into()
 }
 
 pub(crate) async fn validate_username(
@@ -57,32 +49,21 @@ pub(crate) async fn verify_captcha(
     captcha_user: Form<CaptchaUser>,
     state: Extension<ShareState>,
 ) -> AppResult<ApiResult<VerifyStatus>> {
+    util::validate_email(&captcha_user.email).await?;
     let connection = &mut state.get_redis_conn().await?;
-    let is_valid = util::validate_captcha(&captcha_user.captcha_key, &captcha_user.captcha_value, connection).await;
-    if is_valid {
-        // todo!("删除验证码缓存")
-        let legal = MAILE_RE.is_match(&captcha_user.email);
-        if legal {
-            let arc = Arc::clone(&state.smtp_transport);
-            let verify_code = String::from(SaltString::generate(&mut OsRng).as_str());
-            util::redis_set(&captcha_user.email, &verify_code, 60 * 50, connection).await;
-            tokio::spawn(async move {
-                let smtp_transport = arc.lock().await;
-                util::send_email(&captcha_user.email, &verify_code, smtp_transport).await;
-            });
-            ApiResult::ok()
-                .msg("验证码校验成功，已发送验证码到您邮箱，请查收")
-                .data(VerifyStatus::success())
-                .into()
-        } else {
-            ApiResult::ok()
-                .msg("验证码校验失败, 邮箱格式不合法")
-                .data(VerifyStatus::fail())
-                .into()
-        }
-    } else {
-        ApiResult::ok().msg("验证码校验失败").data(VerifyStatus::fail()).into()
-    }
+    util::verify_captcha(&captcha_user.captcha_key, &captcha_user.captcha_value, connection).await?;
+    // todo!("删除验证码缓存")
+    let arc = Arc::clone(&state.smtp_transport);
+    let verify_code = String::from(SaltString::generate(&mut OsRng).as_str());
+    util::redis_set(&captcha_user.email, &verify_code, 60 * 50, connection).await;
+    tokio::spawn(async move {
+        let smtp_transport = arc.lock().await;
+        util::send_email(&captcha_user.email, &verify_code, smtp_transport).await;
+    });
+    ApiResult::ok()
+        .msg("验证码校验成功，已发送验证码到您邮箱，请查收")
+        .data(VerifyStatus::success())
+        .into()
 }
 
 pub(crate) async fn verify_email(
@@ -100,17 +81,7 @@ pub(crate) async fn login(
 ) -> AppResult<(StatusCode, HeaderMap, Vec<u8>)> {
     let connection = &mut state.get_redis_conn().await?;
     let pool = &state.db_pool;
-    let is_valid = util::validate_captcha(&login_user.captcha_key, &login_user.captcha_value, connection).await;
-    // 验证码不正确直接返回
-    if !is_valid {
-        let mut headers = HeaderMap::with_capacity(1usize);
-        headers.insert(
-            HeaderName::from_static("content-type"),
-            HeaderValue::from_static("application/json"),
-        );
-        let body = serde_json::to_vec(&ApiResult::ok().msg("验证码校验失败").data(VerifyStatus::fail()))?;
-        return Ok((StatusCode::OK, headers, body));
-    }
+    util::verify_captcha(&login_user.captcha_key, &login_user.captcha_value, connection).await?;
     let u = User::find_user_by_email(&login_user.email, pool).await?;
     let login_success = util::verify_pwd(&login_user.password, &u.user_password).await?;
     if login_success {
@@ -143,5 +114,29 @@ pub(crate) async fn login(
             HeaderValue::from_static("application/json"),
         );
         Ok((StatusCode::OK, headers, body))
+    }
+}
+
+pub(crate) async fn find_user_pwd(
+    Form(find_user_pwd): Form<FindUserPwd>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<()>> {
+    match find_user_pwd.email_verify_code {
+        None => {
+            util::validate_email(&find_user_pwd.email).await?;
+            let conn = &mut state.get_redis_conn().await?;
+            util::verify_captcha(&find_user_pwd.captcha_key, &find_user_pwd.captcha_value, conn).await?;
+            let arc = Arc::clone(&state.smtp_transport);
+            let verify_code = String::from(SaltString::generate(&mut OsRng).as_str());
+            util::redis_set(&find_user_pwd.email, &verify_code, 60 * 50, conn).await;
+            tokio::spawn(async move {
+                let smtp_transport = arc.lock().await;
+                util::send_email(&find_user_pwd.email, &verify_code, smtp_transport).await;
+            });
+            Ok(ApiResult::ok().msg("验证码已发送至邮箱").data(()))
+        }
+        Some(code) => {
+            todo!("有邮箱验证码的情况")
+        }
     }
 }

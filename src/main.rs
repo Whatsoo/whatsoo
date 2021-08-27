@@ -7,14 +7,12 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
-use std::borrow::BorrowMut;
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use argon2::password_hash::SaltString;
 use axum::body::Body;
 use axum::http::Request;
 use axum::AddExtensionLayer;
@@ -90,8 +88,8 @@ async fn main() -> AppResult<()> {
 
     let creds = Credentials::new(mine_email.to_string(), password.to_string());
 
-    // Open connection to Gmail
-    let mut mailer = SmtpClient::new_simple(smtp_server)
+    // Open connection to QQMail
+    let mailer = SmtpClient::new_simple(smtp_server)
         .unwrap()
         .credentials(creds)
         .transport();

@@ -49,6 +49,15 @@ pub struct LoginUser {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FindUserPwd {
+    pub captcha_key: String,
+    pub captcha_value: String,
+    pub email: String,
+    pub password: String,
+    pub email_verify_code: Option<String>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct UserToken {
     pub pk_id: u64,
