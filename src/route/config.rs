@@ -1,6 +1,6 @@
 use axum::handler::{get, post};
-use axum::routing::BoxRoute;
 use axum::Router;
+use axum::routing::BoxRoute;
 
 use crate::route::topic_route::create_topic;
 use crate::route::user_route::{
@@ -17,6 +17,6 @@ pub fn init() -> Router<BoxRoute> {
         .route("/login", post(login))
         .route("/find/user", post(find_user_pwd))
         .route("/captcha", get(get_captcha))
-        .route("/topic", get(create_topic))
+        .route("/topic", post(create_topic))
         .boxed()
 }

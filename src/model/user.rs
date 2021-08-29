@@ -1,6 +1,6 @@
 use axum::extract::{FromRequest, RequestParts};
-use sqlx::types::chrono::NaiveDateTime;
 use sqlx::FromRow;
+use sqlx::types::chrono::NaiveDateTime;
 
 use crate::common::constant::TOKEN_HEADER_NAME;
 use crate::common::date_format;
@@ -60,16 +60,16 @@ pub struct FindUserPwd {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct UserToken {
-    pub pk_id: u64,
+    pub user_id: u64,
     pub uk_username: String,
     pub email: String,
     pub exp: usize,
 }
 
 impl UserToken {
-    pub fn new(pk_id: u64, uk_username: String, email: String, exp: usize) -> Self {
+    pub fn new(user_id: u64, uk_username: String, email: String, exp: usize) -> Self {
         UserToken {
-            pk_id,
+            user_id,
             uk_username,
             email,
             exp,
@@ -79,8 +79,8 @@ impl UserToken {
 
 #[async_trait]
 impl<B> FromRequest<B> for UserToken
-where
-    B: Send,
+    where
+        B: Send,
 {
     type Rejection = AppError;
 
@@ -88,7 +88,7 @@ where
         let token_value = req
             .headers()
             .and_then(|headers| headers.get(TOKEN_HEADER_NAME))
-            .ok_or(AppError::BusinessError(500, "TOKEN不存在"))?
+            .ok_or(AppError::BusinessError(500, "用户未登录，请登录后操作"))?
             .to_str()
             .map_err(|e| {
                 error!("TOKEN解析到字符串出错: {}", e.to_string());

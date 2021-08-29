@@ -31,14 +31,14 @@ create table whatsoo.topic
     pk_id       bigint unsigned auto_increment comment '主键id'
         primary key,
     user_id     bigint unsigned not null comment '用户id',
-    title       varchar(100)  not null comment '主题标题',
-    content     varchar(1000) not null comment '帖子内容',
-    tags        varchar(50)   not null comment '帖子相关主题id，-分隔，例如1-2-3-4',
+    title       varchar(100)                       not null comment '主题标题',
+    content     varchar(1000)                      not null comment '帖子内容',
+    tags        varchar(50)                        not null comment '帖子相关主题id，-分隔，例如1-2-3-4',
     like_times  bigint unsigned default 0 not null comment '收藏次数',
     click_times bigint unsigned default 0 not null comment '点击次数',
-    create_time datetime      not null comment '创建时间',
+    create_time datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     create_user bigint unsigned not null comment '创建人',
-    update_time datetime      not null comment '更新时间',
+    update_time datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     update_user bigint unsigned not null comment '更新人'
 ) comment '帖子表';
 
@@ -67,7 +67,7 @@ create table whatsoo.tag_topic_relation
 ) comment '主题标签关系表';
 
 create
-index tag_topic_relation_tag_id_index
+    index tag_topic_relation_tag_id_index
     on whatsoo.tag_topic_relation (tag_id);
 
 create table whatsoo.comment
@@ -83,7 +83,7 @@ create table whatsoo.comment
 ) comment '评论表';
 
 create
-index comment_post_id_index
+    index comment_post_id_index
     on whatsoo.comment (post_id);
 
 create table whatsoo.star

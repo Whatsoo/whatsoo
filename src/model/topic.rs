@@ -20,3 +20,11 @@ pub struct Topic {
     pub update_time: NaiveDateTime,
     pub update_user: u64,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct TopicFront {
+    pub user_id: Option<u64>,
+    pub title: String,
+    pub content: String,
+    pub tags: String,
+}

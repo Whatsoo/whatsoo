@@ -79,7 +79,6 @@ async fn main() -> AppResult<()> {
         .idle_timeout(Duration::from_millis(600000))
         .connect(&db_url)
         .await?;
-
     let client = redis::Client::open("redis://127.0.0.1/")?;
     let redis_pool = r2d2::Pool::builder().max_size(20).min_idle(Some(10)).build(client)?;
     let mine_email = "nova-me@whatsoo.org";
