@@ -28,3 +28,10 @@ pub struct TopicFront {
     pub content: String,
     pub tags: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct Pagination {
+    pub current_page: u32,
+    pub page_size: u32,
+}
+

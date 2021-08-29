@@ -13,18 +13,18 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::AddExtensionLayer;
 use axum::body::Body;
 use axum::http::Request;
-use axum::AddExtensionLayer;
 use dotenv::dotenv;
-use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, SmtpTransport};
+use lettre::smtp::authentication::Credentials;
 use r2d2::{Pool, PooledConnection};
 use redis::Client;
 use regex::Regex;
+use sqlx::{MySql, MySqlPool};
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::pool::PoolConnection;
-use sqlx::{MySql, MySqlPool};
 use tokio::sync::Mutex;
 use tower::filter::AsyncFilterLayer;
 use tower::ServiceBuilder;
@@ -81,16 +81,17 @@ async fn main() -> AppResult<()> {
         .await?;
     let client = redis::Client::open("redis://127.0.0.1/")?;
     let redis_pool = r2d2::Pool::builder().max_size(20).min_idle(Some(10)).build(client)?;
-    let mine_email = "nova-me@whatsoo.org";
-    let smtp_server = "smtp.exmail.qq.com";
-    let password = "Zsl19951210"; //需要生成应用专用密码
 
-    let creds = Credentials::new(mine_email.to_string(), password.to_string());
+    let mine_email = &env::var("MINE_EMAIL").expect("邮箱账户为设置");
+    let smtp_server = &env::var("SMTP_SERVER").expect("邮箱服务器未设置");
+    let password = &env::var("PASSWORD").expect("邮箱服务器密码未设置");
+
+    let credentials = Credentials::new(mine_email.to_string(), password.to_string());
 
     // Open connection to QQMail
     let mailer = SmtpClient::new_simple(smtp_server)
         .unwrap()
-        .credentials(creds)
+        .credentials(credentials)
         .transport();
     let smtp_transport = Arc::new(Mutex::new(mailer));
     let state = ShareState {
