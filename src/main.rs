@@ -82,7 +82,7 @@ async fn main() -> AppResult<()> {
     let client = redis::Client::open("redis://127.0.0.1/")?;
     let redis_pool = r2d2::Pool::builder().max_size(20).min_idle(Some(10)).build(client)?;
 
-    let mine_email = &env::var("MINE_EMAIL").expect("邮箱账户为设置");
+    let mine_email = &env::var("MINE_EMAIL").expect("邮箱账户未设置");
     let smtp_server = &env::var("SMTP_SERVER").expect("邮箱服务器未设置");
     let password = &env::var("PASSWORD").expect("邮箱服务器密码未设置");
 
