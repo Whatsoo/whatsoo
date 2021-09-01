@@ -2,7 +2,7 @@ Cargo.lock
 target/
 guide/build/
 /gh-pages
-
+.env
 *.so
 *.out
 *.pyc
