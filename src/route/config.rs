@@ -1,6 +1,6 @@
 use axum::handler::{get, post};
-use axum::Router;
 use axum::routing::BoxRoute;
+use axum::Router;
 
 use crate::route::topic_route::create_topic;
 use crate::route::user_route::{

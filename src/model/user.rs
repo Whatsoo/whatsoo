@@ -1,6 +1,6 @@
 use axum::extract::{FromRequest, RequestParts};
-use sqlx::FromRow;
 use sqlx::types::chrono::NaiveDateTime;
+use sqlx::FromRow;
 
 use crate::common::constant::TOKEN_HEADER_NAME;
 use crate::common::date_format;
@@ -79,8 +79,8 @@ impl UserToken {
 
 #[async_trait]
 impl<B> FromRequest<B> for UserToken
-    where
-        B: Send,
+where
+    B: Send,
 {
     type Rejection = AppError;
 

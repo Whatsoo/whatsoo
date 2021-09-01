@@ -1,12 +1,12 @@
 use axum::extract::{Extension, Form};
 use axum::Json;
 
-use crate::{AppResult, ShareState};
 use crate::common::api::ApiResult;
 use crate::common::err::AppError;
 use crate::model::topic::TopicFront;
 use crate::model::user::{UserToken, VerifyStatus};
 use crate::repository::topic_repository;
+use crate::{AppResult, ShareState};
 
 pub(crate) async fn create_topic(
     Json(mut new_topic): Json<TopicFront>,

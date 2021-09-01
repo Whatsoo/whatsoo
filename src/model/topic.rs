@@ -34,4 +34,3 @@ pub struct Pagination {
     pub current_page: u32,
     pub page_size: u32,
 }
-
