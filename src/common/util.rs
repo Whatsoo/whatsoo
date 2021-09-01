@@ -103,7 +103,6 @@ pub async fn gen_pic_captcha() -> AppResult<(String, String, Vec<u8>)> {
 pub async fn verify_captcha(key: &str, value: &str, connection: &mut PooledConnection<Client>) -> AppResult<()> {
     let result = redis_get::<String>(key, connection).await?;
     if result.eq(value) {
-        // todo!("删除key")
         Ok(())
     } else {
         Err(AppError::BusinessError(500, "验证码错误，请重新输入"))
