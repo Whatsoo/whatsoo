@@ -51,7 +51,7 @@ struct ShareState {
     pub smtp_transport: Arc<Mutex<SmtpTransport>>,
 }
 
-type AppResult<R> = std::result::Result<R, AppError>;
+type AppResult<R> =  std::result::Result<R, AppError>;
 
 impl ShareState {
     pub async fn get_redis_conn(&self) -> AppResult<PooledConnection<Client>> {
