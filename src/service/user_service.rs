@@ -8,7 +8,7 @@ use crate::model::user::{RegisterUser, User, VerifyStatus};
 use crate::AppResult;
 
 pub async fn check_email_exists(email: String, pool: &MySqlPool) -> ApiResult<VerifyStatus> {
-    let exists = User::count_by_email(email, pool).await;
+    let exists = User::count_by_email(&email, pool).await;
     match exists {
         Ok(count) => {
             if count == 0 {

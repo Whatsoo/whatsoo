@@ -9,6 +9,7 @@ use chrono::Local;
 
 use crate::common::api::ApiResult;
 use crate::common::constant::TOKEN_HEADER_NAME;
+use crate::common::err::AppError;
 use crate::common::util;
 use crate::model::user::{CaptchaUser, FindUserPwd, LoginUser, RegisterUser, User, UserToken, VerifyStatus};
 use crate::service::user_service;
@@ -121,10 +122,12 @@ pub(crate) async fn find_user_pwd(
     Form(find_user_pwd): Form<FindUserPwd>,
     state: Extension<ShareState>,
 ) -> AppResult<ApiResult<()>> {
+    let conn = &mut state.get_redis_conn().await?;
+    let pool = &state.db_pool;
+    let user = User::find_user_by_email(&find_user_pwd.email, pool).await?;
     match find_user_pwd.email_verify_code {
         None => {
             util::validate_email(&find_user_pwd.email).await?;
-            let conn = &mut state.get_redis_conn().await?;
             util::verify_captcha(&find_user_pwd.captcha_key, &find_user_pwd.captcha_value, conn).await?;
             let arc = Arc::clone(&state.smtp_transport);
             let verify_code = String::from(SaltString::generate(&mut OsRng).as_str());
@@ -136,7 +139,33 @@ pub(crate) async fn find_user_pwd(
             Ok(ApiResult::ok().msg("验证码已发送至邮箱").data(()))
         }
         Some(code) => {
-            todo!("有邮箱验证码的情况")
+            let cache_verify_code = util::redis_get::<String>(&find_user_pwd.email, conn).await?;
+            if code.eq(&cache_verify_code) {
+                let encode_pwd = util::encode_pwd(&find_user_pwd.password).await?;
+                let rows_affected = User::update_user_pwd(encode_pwd, user.pk_id, pool).await?;
+                if rows_affected == 1 {
+                    Ok(ApiResult::ok().msg("修改密码成功").data(()))
+                } else {
+                    Err(AppError::BusinessError(500, "修改密码失败"))
+                }
+            } else {
+                Err(AppError::BusinessError(500, "邮箱验证码校验错误"))
+            }
         }
+    }
+}
+
+pub(crate) async fn change_user_pwd(
+    user_token: UserToken,
+    Path((pwd)): Path<String>,
+    state: Extension<ShareState>,
+) -> AppResult<ApiResult<()>> {
+    let pool = &state.db_pool;
+    let encode_pwd = util::encode_pwd(&pwd).await?;
+    let rows_affected = User::update_user_pwd(encode_pwd, user_token.user_id, pool).await?;
+    if rows_affected == 1 {
+        Ok(ApiResult::ok().msg("修改密码成功").data(()))
+    } else {
+        Err(AppError::BusinessError(500, "修改密码失败"))
     }
 }

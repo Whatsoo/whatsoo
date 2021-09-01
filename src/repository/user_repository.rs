@@ -5,7 +5,7 @@ use crate::model::user::{RegisterUser, User};
 use crate::AppResult;
 
 impl User {
-    pub async fn count_by_email(email: String, pool: &MySqlPool) -> AppResult<i64> {
+    pub async fn count_by_email(email: &str, pool: &MySqlPool) -> AppResult<i64> {
         sqlx::query!(
             r#"
             SELECT COUNT(*) as count
@@ -18,6 +18,22 @@ impl User {
         .await
         .map_err(|e| AppError::DatabaseError(e))
         .map(|res| res.count)
+    }
+
+    pub async fn update_user_pwd(pwd: String, id: u64, pool: &MySqlPool) -> AppResult<u64> {
+        let rows_affected = sqlx::query!(
+            r#"
+            UPDATE user
+            SET user_password = ?
+            WHERE pk_id = ?
+            "#,
+            pwd,
+            id,
+        )
+        .execute(pool)
+        .await?
+        .rows_affected();
+        Ok(rows_affected)
     }
 
     pub async fn count_by_username(username: String, pool: &MySqlPool) -> AppResult<i64> {
@@ -65,6 +81,6 @@ impl User {
         )
         .fetch_one(pool)
         .await
-        .map_err(|_| AppError::BusinessError(500, "登录失败，用户名或密码错误"))
+        .map_err(|_| AppError::BusinessError(500, "用户不存在"))
     }
 }
