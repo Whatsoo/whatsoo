@@ -2,13 +2,14 @@ use sqlx::MySqlPool;
 
 use crate::{common::err::AppError, model::topic::TopicFront, AppResult};
 
+#[inline]
 pub async fn insert_one_topic(new_topic: TopicFront, pool: &MySqlPool) -> AppResult<bool> {
     let user_id = new_topic.user_id.ok_or(AppError::BusinessError(500, "用户不能为空"))?;
     sqlx::query!(
         r#"
         INSERT INTO topic
             (user_id, title, content, tags, create_user, update_user)
-        VALUES 
+        VALUES
             (?,?,?,?,?,?)
         "#,
         user_id,

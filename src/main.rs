@@ -87,7 +87,7 @@ async fn main() -> AppResult<()> {
     let password = &env::var("PASSWORD").expect("邮箱服务器密码未设置");
 
     let credentials = Credentials::new(mine_email.to_string(), password.to_string());
-    
+
     // Open connection to QQMail
     let mailer = SmtpClient::new_simple(smtp_server)
         .unwrap()
@@ -99,7 +99,7 @@ async fn main() -> AppResult<()> {
         redis_pool,
         smtp_transport,
     };
-    
+
     let middleware_stack = ServiceBuilder::new()
         .timeout(Duration::from_secs(30))
         .load_shed()
