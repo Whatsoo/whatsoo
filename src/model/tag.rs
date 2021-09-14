@@ -1,6 +1,6 @@
-use sqlx::FromRow;
-use sqlx::types::chrono::NaiveDateTime;
 use crate::common::date_format;
+use sqlx::types::chrono::NaiveDateTime;
+use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Tag {

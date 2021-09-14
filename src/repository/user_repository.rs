@@ -15,10 +15,10 @@ impl User {
             "#,
             email
         )
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e))
-            .map(|res| res.count)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|res| res.count)
     }
 
     #[inline(always)]
@@ -32,9 +32,9 @@ impl User {
             pwd,
             id,
         )
-            .execute(pool)
-            .await?
-            .rows_affected();
+        .execute(pool)
+        .await?
+        .rows_affected();
         Ok(rows_affected)
     }
 
@@ -48,10 +48,10 @@ impl User {
             "#,
             username
         )
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e))
-            .map(|res| res.count)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|res| res.count)
     }
 
     #[inline(always)]
@@ -67,10 +67,10 @@ impl User {
             user.uk_email,
             user.user_password,
         )
-            .execute(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e))
-            .map(|done| done.last_insert_id())
+        .execute(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+        .map(|done| done.last_insert_id())
     }
 
     #[inline(always)]
@@ -84,8 +84,8 @@ impl User {
             "#,
             email
         )
-            .fetch_one(pool)
-            .await
-            .map_err(|_| AppError::BusinessError(500, "用户不存在"))
+        .fetch_one(pool)
+        .await
+        .map_err(|_| AppError::BusinessError(500, "用户不存在"))
     }
 }

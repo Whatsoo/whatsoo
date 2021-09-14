@@ -1,5 +1,5 @@
-use sqlx::types::chrono::NaiveDateTime;
 use crate::common::date_format;
+use sqlx::types::chrono::NaiveDateTime;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -12,7 +12,7 @@ pub struct Star {
     pub create_time: NaiveDateTime,
 }
 
-#[derive(Debug, Copy, Clone,Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum StarType {
     User = 1,
     Topic = 2,

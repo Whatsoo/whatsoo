@@ -1,4 +1,4 @@
-use axum::extract::{Extension};
+use axum::extract::Extension;
 use axum::Json;
 
 use crate::common::api::ApiResult;

@@ -19,10 +19,10 @@ pub async fn insert_one_topic(new_topic: TopicFront, pool: &MySqlPool) -> AppRes
         user_id,
         user_id,
     )
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e))
-        .map(|done| done.last_insert_id() > 0)
+    .execute(pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))
+    .map(|done| done.last_insert_id() > 0)
 }
 
 // todo 管理人员才能置顶
@@ -35,8 +35,8 @@ pub async fn update_topic_top(pk_id: u64, top: bool, pool: &MySqlPool) -> AppRes
         top,
         pk_id,
     )
-        .execute(pool)
-        .await?
-        .rows_affected();
+    .execute(pool)
+    .await?
+    .rows_affected();
     Ok(rows_affected > 0)
 }
