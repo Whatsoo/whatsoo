@@ -4,6 +4,14 @@ version = "0.1.0"
 authors = ["NOVA-ME <nova-me@whatsoo.org>"]
 edition = "2018"
 
+[profile.release]
+incremental = true
+debug = 0 # Set this to 1 or 2 to get more useful backtraces in debugger.
+opt-level = 3
+panic = 'abort'
+lto = true
+codegen-units = 1
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 # axum

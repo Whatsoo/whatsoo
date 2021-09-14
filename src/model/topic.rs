@@ -10,9 +10,9 @@ pub struct Topic {
     pub title: String,
     pub content: String,
     pub tags: String,
-    pub like_times: u32,
-    pub click_times: u32,
-    pub top: u8,
+    pub like_times: u64,
+    pub click_times: u64,
+    pub top: bool,
     #[serde(with = "date_format")]
     pub create_time: NaiveDateTime,
     pub create_user: u64,

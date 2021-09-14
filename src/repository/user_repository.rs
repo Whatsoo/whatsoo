@@ -5,6 +5,7 @@ use crate::model::user::{RegisterUser, User};
 use crate::AppResult;
 
 impl User {
+    #[inline(always)]
     pub async fn count_by_email(email: &str, pool: &MySqlPool) -> AppResult<i64> {
         sqlx::query!(
             r#"
@@ -14,12 +15,13 @@ impl User {
             "#,
             email
         )
-        .fetch_one(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e))
-        .map(|res| res.count)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))
+            .map(|res| res.count)
     }
 
+    #[inline(always)]
     pub async fn update_user_pwd(pwd: String, id: u64, pool: &MySqlPool) -> AppResult<u64> {
         let rows_affected = sqlx::query!(
             r#"
@@ -30,12 +32,13 @@ impl User {
             pwd,
             id,
         )
-        .execute(pool)
-        .await?
-        .rows_affected();
+            .execute(pool)
+            .await?
+            .rows_affected();
         Ok(rows_affected)
     }
 
+    #[inline(always)]
     pub async fn count_by_username(username: String, pool: &MySqlPool) -> AppResult<i64> {
         sqlx::query!(
             r#"
@@ -45,12 +48,13 @@ impl User {
             "#,
             username
         )
-        .fetch_one(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e))
-        .map(|res| res.count)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))
+            .map(|res| res.count)
     }
 
+    #[inline(always)]
     pub async fn insert_one_user(user: RegisterUser, pool: &MySqlPool) -> AppResult<u64> {
         sqlx::query!(
             r#"
@@ -63,12 +67,13 @@ impl User {
             user.uk_email,
             user.user_password,
         )
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e))
-        .map(|done| done.last_insert_id())
+            .execute(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))
+            .map(|done| done.last_insert_id())
     }
 
+    #[inline(always)]
     pub async fn find_user_by_email(email: &str, pool: &MySqlPool) -> AppResult<User> {
         sqlx::query_as!(
             User,
@@ -79,8 +84,8 @@ impl User {
             "#,
             email
         )
-        .fetch_one(pool)
-        .await
-        .map_err(|_| AppError::BusinessError(500, "用户不存在"))
+            .fetch_one(pool)
+            .await
+            .map_err(|_| AppError::BusinessError(500, "用户不存在"))
     }
 }

@@ -157,7 +157,7 @@ pub(crate) async fn find_user_pwd(
 
 pub(crate) async fn change_user_pwd(
     user_token: UserToken,
-    Path((pwd)): Path<String>,
+    Path(pwd): Path<String>,
     state: Extension<ShareState>,
 ) -> AppResult<ApiResult<()>> {
     let pool = &state.db_pool;
