@@ -34,6 +34,7 @@ create table whatsoo.topic
     title       varchar(100)                       not null comment '主题标题',
     content     varchar(1000)                      not null comment '帖子内容',
     tags        varchar(50)                        not null comment '帖子相关主题id，-分隔，例如1-2-3-4',
+    top         bit             default b'0'       not null comment '帖子是否置顶',
     like_times  bigint unsigned default 0 not null comment '收藏次数',
     click_times bigint unsigned default 0 not null comment '点击次数',
     create_time datetime default CURRENT_TIMESTAMP not null comment '创建时间',
