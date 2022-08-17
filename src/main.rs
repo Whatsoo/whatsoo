@@ -85,7 +85,6 @@ async fn main() -> AppResult<()> {
     let mine_email = &env::var("MINE_EMAIL").expect("邮箱账户未设置");
     let smtp_server = &env::var("SMTP_SERVER").expect("邮箱服务器未设置");
     let password = &env::var("PASSWORD").expect("邮箱服务器密码未设置");
-
     let credentials = Credentials::new(mine_email.to_string(), password.to_string());
 
     // Open connection to QQMail
