@@ -57,7 +57,6 @@ impl ShareState {
     pub async fn get_redis_conn(&self) -> AppResult<PooledConnection<Client>> {
         Ok(self.redis_pool.get()?)
     }
-
     pub async fn get_mysql_conn(&self) -> AppResult<PoolConnection<MySql>> {
         Ok(self.db_pool.acquire().await?)
     }
@@ -118,6 +117,6 @@ async fn main() -> AppResult<()> {
 
 async fn filter(req: Request<Body>) -> Result<Request<Body>, Infallible> {
     tracing::info!("path is : {} [{}]", req.method(), req.uri().path());
-    // todo!("添加过滤条件，检查Token是否过期");
+    todo!("添加过滤条件，检查Token是否过期");
     Ok(req)
 }
