@@ -38,6 +38,10 @@ mod model;
 mod repository;
 mod route;
 mod service;
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 lazy_static! {
     static ref MAILE_RE: Regex = Regex::new(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$").unwrap();
